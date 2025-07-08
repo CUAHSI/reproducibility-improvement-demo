@@ -10,7 +10,7 @@ import numpy as np
 import datetime as dt
 import pandas as pd
 from matplotlib.colors import ListedColormap
-import data_prep_helpers as hlp
+import _01_DataPrep.scripts.data_prep_helpers as hlp
 
 def load_and_clean_orgeval_data(data_folder: str) -> pd.DataFrame:
     """
@@ -52,10 +52,10 @@ def main(data_folder, out_data_folder, res):
 
     df = hlp.calculate_doy(df) # Calculate DOY using the index
 
-    # Apply specific value filters
-    df['discharge'] = hlp.apply_range_filter(df, 'discharge', lower_bound=0)
-    df['TempRiver'] = hlp.apply_range_filter(df, 'TempRiver', lower_bound=-10, upper_bound=40)
-    df['Turbidity'] = hlp.apply_range_filter(df, 'Turbidity', lower_bound=0)
+    # # Apply specific value filters
+    # df['discharge'] = hlp.apply_range_filter(df, 'discharge', lower_bound=0)
+    # df['TempRiver'] = hlp.apply_range_filter(df, 'TempRiver', lower_bound=-10, upper_bound=40)
+    # df['Turbidity'] = hlp.apply_range_filter(df, 'Turbidity', lower_bound=0)
 
     # Apply datetime filtering if needed (example)
     # df = hlp.filter_by_datetime_range(df, start_date=dt.datetime(2010,1,1), end_date=dt.datetime(2020,12,31))

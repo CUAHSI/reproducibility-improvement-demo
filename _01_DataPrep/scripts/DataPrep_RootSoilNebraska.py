@@ -7,7 +7,7 @@ import pandas as pd
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 import numpy as np
-import data_prep_helpers as hlp
+import _01_DataPrep.scripts.data_prep_helpers as hlp
 
 def load_and_process_rootsoil_data(file_path: str, site_name: str) -> pd.DataFrame:
     """

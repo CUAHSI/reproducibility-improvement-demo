@@ -10,7 +10,7 @@ import datetime as dt
 import pandas as pd
 from matplotlib.colors import ListedColormap
 # Import the helper script
-import prep_helpers as hlp
+import _01_DataPrep.scripts.data_prep_helpers as hlp
 
 def load_and_initial_process_flux_data(data_folder: str) -> pd.DataFrame:
     """
