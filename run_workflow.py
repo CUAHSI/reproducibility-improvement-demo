@@ -1,6 +1,10 @@
+# import prep/pre-processing scripts as modules
 from _01_DataPrep.scripts import DataPrep_FluxBothSitesHourly, DataPrep_FluxGCDaily, DataPrep_RiverMonticello, DataPrep_RiverOrgeval, DataPrep_RiverPlynlimon, DataPrep_RootSoilNebraska
 
 def prepare_data(in_folder, out_folder, res):
+    """
+    Prepare flux tower, riverlab and root soil datasets using pre-processing routines.
+    """
 
     # pre-process data for flux tower case - concatenate datasets, gap fill, etc    
     try:
@@ -33,6 +37,9 @@ def prepare_data(in_folder, out_folder, res):
         print(e)
 
 def main():
+    """
+    Main function.
+    """
     prepare_data(in_folder="_01_DataPrep/input/", 
                  out_folder="_01_DataPrep/output/", 
                  res = '30min')
