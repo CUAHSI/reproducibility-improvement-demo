@@ -138,9 +138,6 @@ if __name__ == '__main__':
 
     data_folder = '../input/'
     out_data_folder = '../output/'
-
-    data_folder = '../input/'
-    out_data_folder = '../output/'
     res = '30min'
 
     main(data_folder,out_data_folder,res)
