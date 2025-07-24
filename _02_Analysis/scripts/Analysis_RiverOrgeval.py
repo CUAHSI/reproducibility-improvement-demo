@@ -1,11 +1,41 @@
 import pandas as pd
 import numpy as np
-import cluster_funcs as cf
+import _02_Analysis.scripts.cluster_funcs as cf
 from _02_Analysis.scripts.analysis_helpers import load_data, scale_data, calculate_flow_conditional_probabilities
 import os
 
-def run_river_orgeval_analysis(nc=6, data_folder='DATA/Processed/',
-                               datafile_name='ProcessedData_RiverOrgeval.csv',
+def export_river_orgeval_results(df_filtered, df_cluster_means, df_flow_prob,
+                                 colnames_responses, colnames_drivers, output_folder):
+    """
+    Exports the analysis results to CSV files.
+
+    Args:
+        df_filtered (pd.DataFrame): The original DataFrame with cluster indices.
+        df_cluster_means (pd.DataFrame): DataFrame of cluster means.
+        df_flow_prob (pd.DataFrame): Flow conditional probabilities.
+        colnames_responses (list): List of response column names.
+        colnames_drivers (list): List of driver column names.
+        output_folder (str): Folder to save the CSV files. Defaults to 'DATA/AnalysisResults/'.
+    """
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Save df_filtered (main analysis results)
+    df_filtered.to_csv(os.path.join(output_folder, 'river_orgeval_filtered_data.csv'), index=True)
+
+    # Save cluster means
+    df_cluster_means.to_csv(os.path.join(output_folder, 'river_orgeval_cluster_means.csv'), index=True)
+
+    # Save flow probabilities
+    df_flow_prob.to_csv(os.path.join(output_folder, 'river_orgeval_flow_prob.csv'), index=False)
+
+    # Save column names
+    with open(os.path.join(output_folder, 'river_orgeval_colnames.txt'), 'w') as f:
+        f.write("colnames_responses=" + str(colnames_responses) + "\n")
+        f.write("colnames_drivers=" + str(colnames_drivers) + "\n")
+    print(f"Analysis results saved to {output_folder}")
+
+def run_river_orgeval_analysis(data_folder, output_folder, nc=6,
+                               datafile_name='Data_OrgevalRiver_Hourly.csv',
                                seed=42):
     """
     Performs the analysis for River Orgeval data, including
@@ -58,45 +88,9 @@ def run_river_orgeval_analysis(nc=6, data_folder='DATA/Processed/',
     flow_ranges = np.asarray(df_filtered['discharge'].quantile([0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1]))
     df_flow_prob = calculate_flow_conditional_probabilities(df_filtered, 'balance_idx', 'discharge', flow_ranges)
 
-    return df_filtered, df_cluster_means, df_flow_prob, colnames_responses, colnames_drivers
-
-def export_river_orgeval_results(df_filtered, df_cluster_means, df_flow_prob,
-                                 colnames_responses, colnames_drivers, output_folder='DATA/AnalysisResults/'):
-    """
-    Exports the analysis results to CSV files.
-
-    Args:
-        df_filtered (pd.DataFrame): The original DataFrame with cluster indices.
-        df_cluster_means (pd.DataFrame): DataFrame of cluster means.
-        df_flow_prob (pd.DataFrame): Flow conditional probabilities.
-        colnames_responses (list): List of response column names.
-        colnames_drivers (list): List of driver column names.
-        output_folder (str): Folder to save the CSV files. Defaults to 'DATA/AnalysisResults/'.
-    """
-    os.makedirs(output_folder, exist_ok=True)
-
-    # Save df_filtered (main analysis results)
-    df_filtered.to_csv(os.path.join(output_folder, 'river_orgeval_filtered_data.csv'), index=True)
-
-    # Save cluster means
-    df_cluster_means.to_csv(os.path.join(output_folder, 'river_orgeval_cluster_means.csv'), index=True)
-
-    # Save flow probabilities
-    df_flow_prob.to_csv(os.path.join(output_folder, 'river_orgeval_flow_prob.csv'), index=False)
-
-    # Save column names
-    with open(os.path.join(output_folder, 'river_orgeval_colnames.txt'), 'w') as f:
-        f.write("colnames_responses=" + str(colnames_responses) + "\n")
-        f.write("colnames_drivers=" + str(colnames_drivers) + "\n")
-    print(f"Analysis results saved to {output_folder}")
-
+    export_river_orgeval_results(df_filtered, df_cluster_means, df_flow_prob,
+                                 colnames_responses, colnames_drivers, output_folder)
 
 if __name__ == '__main__':
     nc_value = 6 # Example number of clusters
-    df_filtered, df_cluster_means, df_flow_prob, colnames_responses, colnames_drivers = \
-        run_river_orgeval_analysis(nc=nc_value)
-
-    export_river_orgeval_results(df_filtered, df_cluster_means, df_flow_prob,
-                                 colnames_responses, colnames_drivers)
-
-    print("Analysis Complete. Results exported to CSV files for visualization.")
+    run_river_orgeval_analysis(nc=nc_value)
