@@ -30,7 +30,7 @@ def load_and_process_rootsoil_data(file_path: str, site_name: str) -> pd.DataFra
 
     return df
 
-def main(data_folder,out_data_folder):
+def prepare_root_soil_nebraska_data(data_folder,out_data_folder):
     """
     Main function to orchestrate the data preprocessing for RootSoil Nebraska data.
     """
@@ -83,4 +83,4 @@ if __name__ == '__main__':
     data_folder = '../input/'
     out_data_folder = '../output/'
 
-    main(data_folder,out_data_folder)
+    prepare_root_soil_nebraska_data(data_folder,out_data_folder)

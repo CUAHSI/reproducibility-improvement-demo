@@ -98,7 +98,7 @@ def process_ndvi_data(data_folder: str) -> pd.DataFrame:
     dfMOD_1day = hlp.resample_and_interpolate(dfMOD, '1D', interpolation_method='linear')
     return dfMOD_1day.reset_index()
 
-def main(data_folder,out_data_folder):
+def prepare_flux_gc_daily_data(data_folder,out_data_folder):
     """
     Main function to orchestrate the data preprocessing for FluxGC Daily data.
     """
@@ -187,4 +187,4 @@ if __name__ == '__main__':
     data_folder = '../input/'
     out_data_folder = '../output/'
 
-    main(data_folder,out_data_folder)
+    prepare_flux_gc_daily_data(data_folder,out_data_folder)

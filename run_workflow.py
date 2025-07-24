@@ -1,5 +1,6 @@
 # import prep/pre-processing scripts as modules
-from _01_DataPrep.scripts import DataPrep_FluxBothSitesHourly, DataPrep_FluxGCDaily, DataPrep_RiverMonticello, DataPrep_RiverOrgeval, DataPrep_RiverPlynlimon, DataPrep_RootSoilNebraska
+from _01_DataPrep.scripts import prepare_hourly_flux_data_both_sites, prepare_flux_gc_daily_data, prepare_river_orgeval_data, prepare_river_plynlimon_data, prepare_river_monticello_data, prepare_root_soil_nebraska_data
+# import analysis/plotting scripts as modules
 
 def prepare_data(in_folder, out_folder, res):
     """
@@ -8,33 +9,38 @@ def prepare_data(in_folder, out_folder, res):
 
     # pre-process data for flux tower case - concatenate datasets, gap fill, etc    
     try:
-        DataPrep_FluxBothSitesHourly.main(in_folder,out_folder)
+        prepare_hourly_flux_data_both_sites(in_folder,out_folder)
     except FileNotFoundError as e:
         print(e)    
     try:    
-        DataPrep_FluxGCDaily.main(in_folder,out_folder)
+        prepare_flux_gc_daily_data(in_folder,out_folder)
     except FileNotFoundError as e:
         print(e)     
 
     # pre-process data for riverlab case - concatenate datasets, gap fill, etc
     try:
-        DataPrep_RiverMonticello.main(in_folder,out_folder, res)
+        prepare_river_monticello_data(in_folder,out_folder, res)
     except FileNotFoundError as e:
         print(e)
     try:
-        DataPrep_RiverOrgeval.main(in_folder,out_folder, res)
+        prepare_river_orgeval_data(in_folder,out_folder, res)
     except FileNotFoundError as e:
         print(e)
     try:
-        DataPrep_RiverPlynlimon.main(in_folder,out_folder, res)
+        prepare_river_plynlimon_data(in_folder,out_folder, res)
     except FileNotFoundError as e:
         print(e)
 
     # MIRZ data pre-processing for input into clustering and IT algorithm
     try:
-        DataPrep_RootSoilNebraska.main(in_folder,out_folder)
+        prepare_root_soil_nebraska_data(in_folder,out_folder)
     except FileNotFoundError as e:
         print(e)
+
+def prepare_data(in_folder, out_folder, res):
+    """
+    Prepare flux tower, riverlab and root soil datasets using pre-processing routines.
+    """
 
 def main():
     """

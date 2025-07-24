@@ -96,7 +96,7 @@ def process_konza_data(data_folder: str) -> pd.DataFrame:
     dfK = dfK.interpolate(method='linear', limit=20) # Apply interpolation like GC
     return dfK
 
-def main(data_folder,out_data_folder):
+def prepare_hourly_flux_data_both_sites(data_folder,out_data_folder):
     """
     Main function to orchestrate the data preprocessing for Flux Both Sites Hourly data.
     """
@@ -163,4 +163,4 @@ if __name__ == '__main__':
     data_folder = '../input/'
     out_data_folder = '../output/'
 
-    main(data_folder,out_data_folder)
+    prepare_hourly_flux_data_both_sites(data_folder,out_data_folder)

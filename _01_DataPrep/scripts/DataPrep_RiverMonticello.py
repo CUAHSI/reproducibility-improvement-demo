@@ -80,7 +80,7 @@ def load_and_process_river_data(data_folder: str, res: str) -> pd.DataFrame:
     df = hlp.calculate_doy(df)
     return df.reset_index()
 
-def main(data_folder,out_data_folder,res):
+def prepare_river_monticello_data(data_folder,out_data_folder,res):
     """
     Main function to orchestrate the data preprocessing for River Monticello data.
     """
@@ -140,4 +140,4 @@ if __name__ == '__main__':
     out_data_folder = '../output/'
     res = '30min'
 
-    main(data_folder,out_data_folder,res)
+    prepare_river_monticello_data(data_folder,out_data_folder,res)

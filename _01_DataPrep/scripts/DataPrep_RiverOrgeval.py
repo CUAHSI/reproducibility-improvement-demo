@@ -37,7 +37,7 @@ def load_and_clean_orgeval_data(data_folder: str) -> pd.DataFrame:
     
     return df.set_index('Date')
 
-def main(data_folder, out_data_folder, res):
+def prepare_river_orgeval_data(data_folder, out_data_folder, res):
     """
     Main function to orchestrate the data preprocessing for River Orgeval data.
     """
@@ -94,4 +94,4 @@ if __name__ == '__main__':
     out_data_folder = '../output/'
     res = '30min' # or '7H' as in original notes
 
-    main(data_folder, out_data_folder, res)
+    prepare_river_orgeval_data(data_folder, out_data_folder, res)

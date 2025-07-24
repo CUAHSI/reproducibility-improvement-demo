@@ -36,7 +36,7 @@ def load_and_clean_plynlimon_data(data_folder: str) -> pd.DataFrame:
 
     return df
 
-def main(data_folder, out_data_folder, res):
+def prepare_river_plynlimon_data(data_folder, out_data_folder, res):
     """
     Main function to orchestrate the data preprocessing for River Plynlimon data.
     """
@@ -88,4 +88,4 @@ if __name__ == '__main__':
     out_data_folder = '../output/'
     res = '7H' # Original script used '7H'
 
-    main(data_folder, out_data_folder, res)
+    prepare_river_plynlimon_data(data_folder, out_data_folder, res)
