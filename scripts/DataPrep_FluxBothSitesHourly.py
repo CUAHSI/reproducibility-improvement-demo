@@ -12,8 +12,8 @@ import datetime as dt
 import pandas as pd
 from matplotlib.colors import ListedColormap
 
-data_folder='DATA/FluxTowers/'
-out_data_folder = 'DATA/Processed/'
+data_folder='data_input/FluxTowers/'
+out_data_folder = 'data_intermediate/'
 
 df = pd.read_csv(data_folder+'GC_FluxData_RAW_25m_042216_050224.csv')
 df['Date']=pd.to_datetime(df['NewDate'])

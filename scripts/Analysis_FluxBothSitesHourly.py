@@ -31,8 +31,8 @@ cm = sns_cmap
 nc=7
 #nc=1
 
-data_folder='DATA/Processed/'
-figname = 'FIGS/FluxTowerBothSitesHourly'+ str(nc) #file path and start of file name of all generated figures
+data_folder='data_intermediate/'
+figname = 'figures/FluxTowerBothSitesHourly'+ str(nc) #file path and start of file name of all generated figures
 datafile_name = 'ProcessedData_GCKonTowers30min.csv'
  
 # Load data
