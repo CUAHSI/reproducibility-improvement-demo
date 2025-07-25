@@ -29,7 +29,7 @@ cm = sns_cmap
 data_folder='data_input/RootSoil/'
 out_data_foder = 'data_intermediate/'
 
-figname= 'FIGS/RootSoil_' #file path and start of file name of all generated figures
+figname= 'figures/RootSoil_' #file path and start of file name of all generated figures
 
 
 #%%

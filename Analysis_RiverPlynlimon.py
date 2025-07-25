@@ -30,7 +30,7 @@ nc=6
 
 
 data_folder='data_intermediate/'
-figname = 'FIGS/RLPlynlimon_'+str(nc) #file path and start of file name of all generated figures
+figname = 'figures/RLPlynlimon_'+str(nc) #file path and start of file name of all generated figures
 datafile_name = 'ProcessedData_RiverPlynlimon.csv'
 
 

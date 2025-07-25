@@ -32,7 +32,7 @@ nc=6
 #nc=1
 
 data_folder='data_intermediate/'
-figname = 'FIGS/FluxTowerGC_Daily_'+ str(nc) #file path and start of file name of all generated figures
+figname = 'figures/FluxTowerGC_Daily_'+ str(nc) #file path and start of file name of all generated figures
 datafile_name = 'ProcessedData_GCFluxTowerDaily.csv'
  
 # Load data
