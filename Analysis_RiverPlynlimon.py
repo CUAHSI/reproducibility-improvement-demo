@@ -91,11 +91,11 @@ for c in colnames_responses:
     allvars_responses.append(df[c])
     #vect = np.log(df[c])
     vect = df[c]
-    vect = np.asfarray(vect).reshape(-1, 1) 
+    vect = np.asarray(vect).reshape(-1, 1) 
     X_responses_scaled.append(scaler.fit_transform(vect))
 
 for c in colnames_drivers:
-    vect = np.asfarray(df[c]).reshape(-1, 1)    
+    vect = np.asarray(df[c]).reshape(-1, 1)    
     allvars_drivers.append(vect)
     X_drivers_scaled.append(scaler.fit_transform(vect))
  
@@ -104,7 +104,7 @@ allvars_all=[]
 X_all_scaled=[]
 for name in [colnames_drivers,colnames_responses]:
     for c in name:
-        vect = np.asfarray(df[c]).reshape(-1, 1)    
+        vect = np.asarray(df[c]).reshape(-1, 1)    
         allvars_all.append(vect)
         X_all_scaled.append(scaler.fit_transform(vect))
  
