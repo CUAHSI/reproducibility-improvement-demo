@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# RiverLab Case: Orgeval watershed, France
+# RiverLab Case: Plynlimon, UK, Upper Hafren 7-hour observations
 
 # Initial setup 
 import matplotlib.pyplot as plt
@@ -17,10 +17,7 @@ import seaborn as sns
 
 import cluster_funcs as cf
 
-
-
 # Seaborn colormap
-
 sns_list = sns.color_palette('deep').as_hex()
 sns_list.insert(0, '#ffffff')  # Insert white at zero position
 sns_cmap = ListedColormap(sns_list)
@@ -32,24 +29,27 @@ cm = sns_cmap
 nc=6
 
 
-data_folder='DATA/Processed/'
-figname = 'FIGS/RLOrgeval_'+str(nc) #file path and start of file name of all generated figures
-datafile_name = 'ProcessedData_RiverOrgeval.csv'
+data_folder='data_intermediate/'
+figname = 'figures/RLPlynlimon_'+str(nc) #file path and start of file name of all generated figures
+datafile_name = 'ProcessedData_RiverPlynlimon.csv'
 
 
 #Load data
 df = pd.read_csv(data_folder+datafile_name)
-df['Date']=pd.to_datetime(df['Date'])
+df['Date']=pd.to_datetime(df['date_time'])
 df= df.set_index(df['Date'])
 
 
+colnames_responses = ['Ca mg/l','Mg mg/l','K mg/l','NO3-N mg/l','Cl mg/l','Na mg/l','SO4 mg/l']
+
 #colnames_responses = ['CalciumLoad_g','MagnesiumLoad_g','PotassiumLoad_g','SodiumLoad_g','ChloridesLoad_g','NitratesLoad_g','SulfatesLoad_g']
-colnames_responses = ['Calcium','Magnesium','Potassium','Sodium','Chlorures','Nitrates','Sulfates']
-colnames_drivers = ['LogQ','TempRiver','Turbidity']
+#colnames_responses = ['Calcium','Magnesium','Potassium','Sodium','Chlorures','Nitrates','Sulfates']
+
+colnames_drivers = ['Flow cumecs','LogQ','dayno']
 
 
 labels_responses=['Ca','Mg','K','Na','Cl','NO3','SO4']
-labels_drivers = ['LQ','Tw','Turb']
+labels_drivers = ['Q','LQ','DOY']
 
 # dfnew = df[colnames_responses].copy()
 # dfnew[colnames_drivers]=df[colnames_drivers]
@@ -159,6 +159,7 @@ X_all_scaled = np.reshape(X_all_scaled,(np.shape(X_all_scaled)[0],np.shape(X_all
 
 #%% GMM clustering 
 
+
 nc_range = range(2,12)
 AIC,BIC = cf.GMMpick(X_responses_scaled,seed, nc_range)
 
@@ -201,7 +202,9 @@ df['pca2']=pca2
 
 #scale values to range from 0-1
 df_minmax = df.copy()
-for c in [colnames_drivers,colnames_responses]:
+for c in colnames_drivers:
+    df_minmax[c]=(df_minmax[c]-df_minmax[c].min())/(df_minmax[c].max()-df_minmax[c].min())
+for c in colnames_responses:
     df_minmax[c]=(df_minmax[c]-df_minmax[c].min())/(df_minmax[c].max()-df_minmax[c].min())
 
 use_drivers, Itot_drivers, R_drivers, S_drivers, U1_drivers, U2_drivers = cf.infoFromDrivers(df_minmax, nc, ntars,colnames_drivers, labels_drivers, nbins, nTests, critval, ax2)
@@ -535,11 +538,11 @@ for i in range(1,nc+1): #loop through classes
     plt.xlim([dt.datetime(2021,8,30,0,0,0), dt.datetime(2022,12,31,0,0,0)])  
     plt.xticks([])
     plt.yticks(fontsize=8,fontname='Arial')
-    plt.subplot(3,1,2)
-    plt.plot(pd.to_numeric(df_small['TempRiver']),'.',color=cm(i),markersize=.2)
-    plt.xlim([dt.datetime(2021,8,30,0,0,0), dt.datetime(2022,12,31,0,0,0)]) 
-    plt.yticks(fontsize=8,fontname='Arial')
-    plt.xticks([])
+    # plt.subplot(3,1,2)
+    # plt.plot(pd.to_numeric(df_small['TempRiver']),'.',color=cm(i),markersize=.2)
+    # plt.xlim([dt.datetime(2021,8,30,0,0,0), dt.datetime(2022,12,31,0,0,0)]) 
+    # plt.yticks(fontsize=8,fontname='Arial')
+    # plt.xticks([])
 
 
 
@@ -562,7 +565,7 @@ C_cv = np.zeros((nc,len(colnames_responses)))
 Q_cv = np.zeros((nc,))
 
 
-Q_cv_all = df['discharge'].std()/df['discharge'].mean()
+Q_cv_all = df['Flow cumecs'].std()/df['Flow cumecs'].mean()
 CVratio_alltime = np.zeros((len(colnames_responses),))
 
 b_alltime = np.zeros((len(colnames_responses),))
@@ -572,11 +575,15 @@ mstyle = ['.','o','s','*','d','x','v']
 
 plt.figure(figsize=(4,4))
 
+logQ = np.asarray(np.log10(df['Flow cumecs']))
+
 for ind_c,c in enumerate(colnames_responses):
     CVratio_alltime[ind_c]=df[c].std()/df[c].mean()/Q_cv_all
     logC = np.asarray(np.log10(df[c]))
-    logQ = np.asarray(np.log10(df['discharge']))
+    
+    #logQ = np.where(logQ<-3,np.log10(.001),logQ)
     result = stats.linregress(logQ,logC)
+    print(c, result)
     b_alltime[ind_c]  = result.slope
     p_alltime[ind_c]  = result.rvalue**2
     
@@ -587,7 +594,9 @@ hall=[]
 for ind_i,i in enumerate(range(1,nc+1)): #loop through classes    
     df_small = df.loc[df['balance_idx']==i]
     
-    Q_cv[ind_i] = df_small['discharge'].std()/df_small['discharge'].mean()
+    logQ = np.asarray(np.log10(df_small['Flow cumecs']))
+    
+    Q_cv[ind_i] = df_small['Flow cumecs'].std()/df_small['Flow cumecs'].mean()
     
     for ind_c,c in enumerate(colnames_responses):
         C_cv[ind_i,ind_c] = df_small[c].std()/df_small[c].mean()
@@ -596,7 +605,8 @@ for ind_i,i in enumerate(range(1,nc+1)): #loop through classes
         
         #also look at power-law regresssion slopes
         logC = np.asarray(np.log10(df_small[c]))
-        logQ = np.asarray(np.log10(df_small['discharge']))
+        
+        #logQ = np.where(logQ<0.001,.001,logQ)
         result = stats.linregress(logQ,logC)
         b[ind_i,ind_c]  = result.slope
         pvalue[ind_i,ind_c]  = result.rvalue**2
@@ -617,6 +627,27 @@ plt.savefig(figname+'_BvsCVratio.svg')
 
 
 plt.show()
+
+
+#%%
+df_droughtsummer = df.loc[df['balance_idx']==2]
+plt.plot(np.log10(df_droughtsummer['discharge']),np.log10(df_droughtsummer['Nitrates']),'.')
+plt.show()
+CV_q_drought = df_droughtsummer ['discharge'].std()/df_droughtsummer ['discharge'].mean()
+CV_N_drought = df_droughtsummer ['Nitrates'].std()/df_droughtsummer ['Nitrates'].mean()
+
+plt.subplot(2,1,1)
+plt.plot(df_droughtsummer['discharge'],'.')
+plt.subplot(2,1,2)
+plt.plot(df_droughtsummer['Nitrates'],'.')
+
+print(CV_q_drought,CV_N_drought)
+#%%
+
+
+
+
+
 
 
 #%%
@@ -670,7 +701,7 @@ plt.show()
 
 plt.figure(figsize=(3,3))
 
-feat_inds = [0,2,5,7,9]
+feat_inds = [0,2,5,7,9,12]
 
 feats = features[:,feat_inds]
 
@@ -716,7 +747,34 @@ plt.show()
 
 #%%
 
-flow_ranges = np.asarray(df['discharge'].quantile([0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1]))
+monthlies = np.zeros((nc,7))
+
+for c_ind,c in enumerate(colnames_responses):
+
+
+    for i in range(1,nc+1): #loop through classes
+        for m_ind,m in enumerate(range(4,11)): #loop trhough months
+            print(m)
+            df_small = df.loc[(df['balance_idx']==i) & (df.index.month==m)]
+
+            monthlies[i-1,m_ind]=len(df_small)
+
+p_monthlies =monthlies/np.sum(monthlies)
+p_m = np.sum(p_monthlies,axis=0)
+conditional_prob = p_monthlies/p_m #prob of a cluster, given a time of day
+
+
+dfp = pd.DataFrame(data=conditional_prob.T,columns = ['1','2','3','4','5','6','7','8','9'])
+dfp['Month']=['Apr','May','Jun','Jul','Aug','Sep','Oct']
+dfp.plot(x='Month', kind='bar', stacked=True,
+        title='Cluster frequency by Month',ax=axes[1])
+
+
+
+
+
+
+flow_ranges = np.asarray(df['Flow cumecs'].quantile([0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1]))
 
 
 flows = np.zeros((nc,10))
@@ -727,7 +785,7 @@ for c_ind,c in enumerate(colnames_responses):
 
     for i in range(1,nc+1): #loop through classes
         for m_ind,m in enumerate(flow_ranges[:-1]): #loop trhough flow quantiles
-            df_small = df.loc[(df['balance_idx']==i) & (df['discharge']>m) & (df['discharge']<=flow_ranges[m_ind+1]) ]
+            df_small = df.loc[(df['balance_idx']==i) & (df['Flow cumecs']>m) & (df['Flow cumecs']<=flow_ranges[m_ind+1]) ]
 
             flows[i-1,m_ind]=len(df_small)
 
@@ -742,3 +800,7 @@ for i in range(0,nc): #loop through classes
 plt.xticks(range(0,len(flow_ranges[:-1])),range(0,100,10),rotation=45)
 plt.savefig(figname+'_TargetFlowCyle.svg',dpi=300)
 plt.show()
+
+
+
+

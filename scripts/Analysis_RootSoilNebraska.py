@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# # Flux tower seasonal regimes
+# MIRZ case study (toot soil gas concentration gradients: Nebraska prairie and ag sites)
 
-#Initial setup
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,55 +10,44 @@ from numpy.random import randint
 import datetime as dt
 import pandas as pd
 from matplotlib.colors import ListedColormap
-import seaborn as sns
 from sklearn.preprocessing import RobustScaler
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import MinMaxScaler
+import seaborn as sns
 
 import cluster_funcs as cf
-
 
 # Seaborn colormap
 sns_list = sns.color_palette('deep').as_hex()
 sns_list.insert(0, '#ffffff')  # Insert white at zero position
 sns_cmap = ListedColormap(sns_list)
+
 cm = sns_cmap
 
 #%%  Load data, pick columns 
 
 #set number of clusters
-nc=7
-#nc=1
+#nc=9
+nc=9
 
-data_folder='DATA/Processed/'
-figname = 'FIGS/FluxTowerBothSitesHourly'+ str(nc) #file path and start of file name of all generated figures
-datafile_name = 'ProcessedData_GCKonTowers30min.csv'
- 
+
+data_folder='data_intermediate/'
+figname = 'figures/RootSoil_'+str(nc) #file path and start of file name of all generated figures
+
+datafile_name = 'ProcessedData_RootSoilNebraska.csv'
+
 # Load data
 df = pd.read_csv(data_folder+datafile_name)
-df['Date']=pd.to_datetime(df['Date'])
-df= df.set_index(df['Date'])
+df['TIMESTAMP']=pd.to_datetime(df['TIMESTAMP'])
+df= df.set_index(df['TIMESTAMP'])
 
-colnames_responses = ['NEE','GPP','Reco','LE','B','WUE']
-colnames_drivers = ['short_up_Avg','RH_tmpr_rh_mean','D5TE_T_5cm_Avg','D5TE_T_100cm_Avg', 'NDVI','D5TE_VWC_5cm_Avg','D5TE_VWC_100cm_Avg']
-
-#ranges of response variables for later plotting
-responses_plotmin = [-50, 0,0,0,0,0]
-responses_plotmax = [10, 50, 20, 650, 5, .5]
-
-colnames_all = colnames_responses+colnames_drivers
+#Select columns and short labels for analysis
+colnames_responses = ['Cs','Cm','Cd','Os','Om','Od']
+colnames_drivers = ['Mean NDVI','AveSoilVWC_180cm','AveSoilTemp_110cm','AveSoilVWC_20cm','AveBaroTemp','Rnsmooth']
 
 
-labels_responses=['Fc','GPP','Reco','LE','B','WUE']
-
-labels_drivers = ['Rg','RH','Ts','Td','NDVI','VWCs','VWCd']
-labels_all = labels_responses + labels_drivers
-
-# dfnew = df[colnames_responses].copy()
-# dfnew[colnames_drivers]=df[colnames_drivers]
-# df_orig=df.copy() #save original data in original units
-# df = dfnew
-
+labels_responses = colnames_responses
+labels_drivers = ['NDVI', 'VWC180','Ts110','VWC20','Ta','Rg']
 
 
 #%%  Set Options
@@ -73,7 +61,7 @@ seed = 3696299933  #  Keep a seed for debugging/plotting
 nbins=25
 nTests = 0
 critval = 3
-Imin = 0.025
+Imin = 0.075
 
 nfeatures=len(colnames_responses)
 ntars = len(colnames_drivers)
@@ -82,7 +70,15 @@ colnames_all = colnames_responses+colnames_drivers
 labels_all = labels_responses + labels_drivers
 
 #selected features for later plotting
-feat_inds = [1,2,3,4,5,6]
+feat_inds_overall = [0,1,2,3,4,5, 6,7,9]
+
+feat_inds_NEAG = [1,4,6,7,8,9,10]
+feat_inds_NEPR = [1,4,6,7,8, 9,10]
+
+feat_inds_onlyresponses = [0,1,2,3,4,5]
+
+feat_inds = feat_inds_NEPR
+
 
 #%% creating feature arrays for driver and response system
 
@@ -92,32 +88,31 @@ allvars_responses=[]
 allvars_drivers=[]
 X_responses_scaled=[]
 X_drivers_scaled=[]
+
+
+allvars_all=[]
+X_all_scaled=[]
+
 for c in colnames_responses:  
     
-    
     allvars_responses.append(df[c])
-    #vect = np.log(df[c])
     vect = df[c]
     vect = np.asarray(vect).reshape(-1, 1) 
     X_responses_scaled.append(scaler.fit_transform(vect))
+
 
 for c in colnames_drivers:
     vect = np.asarray(df[c]).reshape(-1, 1)    
     allvars_drivers.append(vect)
     X_drivers_scaled.append(scaler.fit_transform(vect))
 
-    
-
  
-allvars_all=[]
-X_all_scaled=[]
+ 
 for name in [colnames_drivers,colnames_responses]:
     for c in name:
         vect = np.asarray(df[c]).reshape(-1, 1)    
         allvars_all.append(vect)
         X_all_scaled.append(scaler.fit_transform(vect))
-
-
 
 
 #%% plot original and scaled data
@@ -162,8 +157,6 @@ plt.show()
 X_responses_scaled = np.asarray(X_responses_scaled)
 X_responses_scaled = np.reshape(X_responses_scaled,(np.shape(X_responses_scaled)[0],np.shape(X_responses_scaled)[1]))   
 
-
-
 X_drivers_scaled = np.asarray(X_drivers_scaled)
 X_drivers_scaled = np.reshape(X_drivers_scaled,(np.shape(X_drivers_scaled)[0],np.shape(X_drivers_scaled)[1]))   
 
@@ -172,17 +165,6 @@ X_all_scaled = np.reshape(X_all_scaled,(np.shape(X_all_scaled)[0],np.shape(X_all
 
 
 #%% GMM clustering 
-SMALL_SIZE = 8
-MEDIUM_SIZE = 10
-BIGGER_SIZE = 12
-
-plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
-plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
-plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 
 nc_range = range(2,12)
@@ -206,11 +188,7 @@ gmm_model, cluster_idx = cf.GMMfun(X_responses_scaled, nc, seed,1,labels_respons
 
 df['cluster_idx']=cluster_idx
 
-
-
-
 #%% PCA: driver and response system
-
 
 fig = plt.figure(figsize=(6.5,0.5+nc/2))
 
@@ -271,50 +249,62 @@ dresults['Utot_2']=U1_drivers[1,:]+U2_drivers[1,:]
 dresults.to_csv(figname+'Results.csv')
 
 
-
 #%% Plot of time-series variables, colored by cluster
 
-plt.figure(1,figsize=(6,7))
+df_ag = df.loc[df['site']=='NEAG']
+df_pr = df.loc[df['site']=='NEPR']
 
-for i in range(1,nc+1): #loop through classes    
-    df_small = df.loc[df['balance_idx']==i]
-    ct=1
-    for var in range(0,nfeatures):
-        
-        plt.figure(1)
-        plt.subplot(9,2,ct)      
-        plt.plot(pd.to_numeric(df_small[colnames_responses[var]]),'.',color=cm(i),markersize=.1,rasterized=True)
-        plt.ylabel(labels_responses[var])
-        plt.xticks([])
-        plt.yticks([])
-        
-        ct+=1
-        
-    for var in range(0,ntars):
+sitename = ['NEAG','NEPR']
 
-        plt.subplot(9,2,ct)      
-        plt.plot(pd.to_numeric(df_small[colnames_drivers[var]]),'.',color=cm(i),markersize=.1,rasterized=True)
-        plt.ylabel(labels_drivers[var])
-        
-        plt.xticks([])
-        plt.yticks([])
+for s,df_site in enumerate([df_ag, df_pr]):
 
-        ct+=1
-        
-    plt.subplot(9,2,ct)
-    plt.plot(pd.to_numeric(df_small['cluster_idx']),'.',color=cm(i),markersize=1)
-    plt.ylabel('Clusters')
     
-    plt.yticks([])
-    plt.xticks(rotation=90)
-        
-plt.subplots_adjust(hspace=.2,wspace=.2)
-#plt.tight_layout()
-plt.savefig(figname+'_TimeSeriesFig_Clusters.svg')
+    plt.figure(1,figsize=(6,9))
+    
+    for i in range(1,nc+1): #loop through classes    
+        df_small = df_site.loc[df_site['balance_idx']==i]
+        ct=1
+        for var in range(0,nfeatures):
+            
+            plt.figure(1)
+            plt.subplot(10,2,ct)      
+            plt.plot(pd.to_numeric(df_small[colnames_responses[var]]),'.',color=cm(i),markersize=1,rasterized=True)
+            plt.hlines(0,dt.datetime(2023,5,15), dt.datetime(2023,11,1,1),color='k',linewidth=0.5)
+            plt.ylabel(labels_responses[var])
+            plt.xticks([])
+            plt.yticks([])
+            
+            ct+=1
+            
+        for var in range(0,ntars):
+    
+            plt.subplot(10,2,ct)      
+            plt.plot(pd.to_numeric(df_small[colnames_drivers[var]]),'.',color=cm(i),markersize=1,rasterized=True)
+            plt.ylabel(labels_drivers[var])
+            
+            plt.yticks([],rotation=90)
+            
+            if var < ntars-1:
+                plt.xticks([])
+            else:
+                plt.xticks(rotation=45)
+    
+            ct+=1
+            
+        plt.subplot(10,2,ct)
+        plt.plot(pd.to_numeric(df_small['cluster_idx']),'.',color=cm(i),markersize=1)
+        plt.ylabel('Clusters')
+        plt.yticks([],rotation=90)
+        plt.xticks(rotation=45)
+            
+    plt.subplots_adjust(hspace=.2,wspace=.2)
+    #plt.tight_layout()
+    plt.savefig(figname+sitename[s]+'_TimeSeriesFig_Clusters.svg')  
+    plt.show()
+    plt.close()
+    
 
-plt.show()
-
-
+    
 #%%  scatter plots showing every relationship, colored by cluster
 vals_responses = X_responses_scaled
 vals_drivers = X_drivers_scaled
@@ -364,6 +354,7 @@ plt.subplots_adjust(wspace=0, hspace=0)
 
 plt.savefig(figname+'_ScatterPlotAllVars.svg',dpi=300)
 plt.show()
+    
 
 
 #%% scatter plots showing only certain variables
@@ -412,6 +403,7 @@ plt.subplots_adjust(wspace=0, hspace=0)
 
 plt.savefig(figname+'_MiniScatterPlots.svg',dpi=300)
 plt.show()
+
 
 
 #%% scatter plot for specific clusters, specific features - PCA versions
@@ -515,6 +507,34 @@ plt.subplots_adjust(wspace=0, hspace=0)
 plt.savefig(figname+'_ScatterPlotSelection_PCA_responses.svg',dpi=300)
 plt.show()
 
+
+
+#%%
+
+df['hour']=df['TIMESTAMP'].dt.hour
+plt.figure(figsize=(8,14))
+
+diurnals = np.zeros((nc,len(np.unique(df.hour))))
+
+m = ['o','o','o','x','x','x','x','o','x']
+
+for c_ind,c in enumerate(colnames_responses):
+
+    plt.subplot(4,2,c_ind+1)
+    for i in range(1,nc+1): #loop through classes
+        for h_ind,h in enumerate(np.unique(df.hour)): #loop trhough years
+            df_small = df.loc[(df['balance_idx']==i) & (df.hour==h)]
+            diurnals[i-1,h_ind]=len(df_small)
+
+            plt.plot(df_small.hour,df_small[colnames_responses[c_ind]],color=cm(i),markersize=6,marker=m[i-1], markerfacecolor='None')
+            plt.title(labels_responses[c_ind],fontsize=14)
+            plt.xticks(rotation=90) 
+
+plt.tight_layout()
+plt.show()
+
+
+
 #%% scatter plots of PC response vectors and driver variables
 
 R1 = np.asarray(df_minmax['pca1'])
@@ -531,7 +551,11 @@ for i in range(1,nc+1): #loop through classes
         for d in range(ntars):
             if use_drivers[ct,d]>0:
                 plt.subplot(10,4,plotct)
-                plt.plot(df_small[colnames_drivers[d]],df_small[c_ind],'.',color=cm(i),markersize=1,alpha=0.5,rasterized=True)
+                if nc>2:
+                    plt.plot(df_small[colnames_drivers[d]],df_small[c_ind],'.',color=cm(i),markersize=1,alpha=0.5,rasterized=True)
+                else:
+                    plt.plot(df_small[colnames_drivers[d]],df_small[c_ind],'.',color='k',markersize=1,alpha=0.5,rasterized=True)
+
                 plt.xticks([])
                 plt.yticks([])
                 plt.title(labels_drivers[d],x=.3, y=.5,fontsize=8)
@@ -545,144 +569,57 @@ plt.subplots_adjust(wspace=0, hspace=0)
 plt.show()
 
 
-#%% Specific plots (flux tower only)
-
-df_GC = df.loc[df['site']=='GC']
-df_Kon = df.loc[df['site']=='Kon']
-
-for site in ['GC','Kon']:
-    
-    dfsite = df.loc[df['site']==site]
-
-    plt.figure(figsize=(3.5,6))
-    for c_ind,c in enumerate(colnames_drivers):
-    
-        plt.subplot(4,2,c_ind+1)
-        for i in range(1,nc+1): #loop through classes
-            for y in range(2000,2024): #loop trhough years
-                df_small = dfsite.loc[(dfsite['balance_idx']==i) & (dfsite.index.year==y)]
-                df_small['doy']=df_small.index.dayofyear
-                plt.plot(df_small['doy'],df_small[colnames_drivers[c_ind]],'.',color=cm(i),markersize=1, rasterized=True, alpha=0.5)
-                plt.title(labels_drivers[c_ind],fontsize=10)
-                plt.xticks(rotation=90) 
-    
-    plt.tight_layout()
-    plt.savefig(figname+site+'_DriversAnnualCyle.svg',dpi=300)
-    
-    plt.show()
-    
-    
-    plt.figure(figsize=(3.5,6))
-    for c_ind,c in enumerate(colnames_responses):
-    
-        plt.subplot(4,2,c_ind+1)
-        for i in range(1,nc+1): #loop through classes
-            for y_ind,y in enumerate(range(2000,2024)): #loop trhough years
-                df_small = dfsite.loc[(dfsite['balance_idx']==i) & (dfsite.index.year==y)]
-                df_small['doy']=df_small.index.dayofyear
-                plt.plot(df_small['doy'],df_small[colnames_responses[c_ind]],marker='.',color=cm(i),markersize=1,linestyle='', markerfacecolor='None', rasterized=True, alpha=0.5)
-                plt.ylim([responses_plotmin[c_ind], responses_plotmax[c_ind]])
-                plt.title(labels_responses[c_ind],fontsize=10)
-                plt.xticks(rotation=90) 
-    
-    plt.tight_layout()
-    plt.savefig(figname+site+'_TargetsAnnualCyle.svg',dpi=300)
-    plt.show()
-
-df['hour']=df['Date'].dt.hour
-
-
-
 #%% Daily, Monthly, Annual probabilities of clusters
-fig, axes = plt.subplots(nrows=1, ncols=1,figsize=(3,2))
+
+NEAG_inds = [1,2,3,8]
+
+diurnals = np.zeros((nc,len(np.unique(df.hour))))
+
+for c_ind,c in enumerate(colnames_responses):
+
+    plt.subplot(4,2,c_ind+1)
+    for i in range(1,nc+1): #loop through classes
+        for h_ind,h in enumerate(np.unique(df.hour)): #loop trhough years
+            df_small = df.loc[(df['balance_idx']==i) & (df.hour==h)]
+
+            diurnals[i-1,h_ind]=len(df_small)
+
+fig, axes = plt.subplots(nrows=1, ncols=3,figsize=(6,2))
+
+p_diurnals = diurnals/np.sum(diurnals)
+p_hr = np.sum(p_diurnals,axis=0)
+conditional_prob = p_diurnals/p_hr #prob of a cluster, given a time of day
 
 
-
-annuals = np.zeros((nc,2))
-for i in range(1,nc+1): #loop through classes
-    for y_ind,site in enumerate(['GC','Kon']): #loop trhough years
-    
-        df_small = df.loc[df['site']==site]
-        df_small = df_small.loc[(df_small['balance_idx']==i)]
-
-        annuals[i-1,y_ind]=len(df_small)
-
-
-p_annuals =annuals/np.sum(annuals)
-p_y = np.sum(p_annuals,axis=0)
-conditional_prob = p_annuals/p_y #prob of a cluster, given a time of day
-
-dfp = pd.DataFrame(data=conditional_prob.T,columns = ['1','2','3','4','5','6','7'])
-dfp['Site']=['GC','Kon']
-dfp.plot(x='Site', kind='bar', stacked=True,
-        title='Cluster frequency by Site',ax=axes)
-
-fig.tight_layout()
-fig.savefig(figname+'_ClusterSite_Probs.svg',dpi=300)
-fig.show()
+plt.subplot(1,3,1)
+dfp = pd.DataFrame(data=conditional_prob.T,columns = ['1','2','3','4','5','6','7','8','9'])
+dfp['Hr']=['0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23']
+dfp.plot(x='Hr', kind='bar', stacked=True,
+        title='Cluster frequency by Hour',ax=axes[0],linewidth=5)
 
 #%%
 
-fig, axes = plt.subplots(nrows=1, ncols=4,figsize=(8,2))
+monthlies = np.zeros((nc,7))
 
+for c_ind,c in enumerate(colnames_responses):
 
-
-fct=0
-
-for dfsite in [df_GC, df_Kon]:
-    
-    monthlies = np.zeros((nc,7))
 
     for i in range(1,nc+1): #loop through classes
         for m_ind,m in enumerate(range(4,11)): #loop trhough months
             print(m)
-            df_small = dfsite.loc[(dfsite['balance_idx']==i) & (dfsite.index.month==m)]
-    
+            df_small = df.loc[(df['balance_idx']==i) & (df.index.month==m)]
+
             monthlies[i-1,m_ind]=len(df_small)
-    
-    p_monthlies =monthlies/np.sum(monthlies)
-    p_m = np.sum(p_monthlies,axis=0)
-    conditional_prob = p_monthlies/p_m #prob of a cluster, given a time of day
-    
-    
-    dfp = pd.DataFrame(data=conditional_prob.T,columns = ['1','2','3','4','5','6','7'])
-    dfp['Month']=['Apr','May','Jun','Jul','Aug','Sep','Oct']
-    dfp.plot(x='Month', kind='bar', stacked=True,
-            title='Cluster frequency by Month',ax=axes[fct])
-    
-    
-    fct+=1
-    
-      
-    
-    hours = np.unique(dfsite.index.hour)
-    hourlies = np.zeros((nc,len(hours)))
-    
-    
-    for i in range(1,nc+1): #loop through classes
-        for m_ind,m in enumerate(hours): #loop trhough months
-            print(m)
-            df_small = dfsite.loc[(dfsite['balance_idx']==i) & (dfsite.index.hour==m)]
-    
-            hourlies[i-1,m_ind]=len(df_small)
-    
-    p_hourlies =hourlies/np.sum(hourlies)
-    p_m = np.sum(p_hourlies,axis=0)
-    conditional_prob = p_hourlies/p_m #prob of a cluster, given a time of day
-    
-    
-    dfp = pd.DataFrame(data=conditional_prob.T,columns = ['1','2','3','4','5','6','7'])
-    dfp['Hour']=['9','10','11','12','13','14','15','16']
-    dfp.plot(x='Hour', kind='bar', stacked=True,
-            title='Cluster frequency by Hour',ax=axes[fct])
-    
-    fct+=1
+
+p_monthlies =monthlies/np.sum(monthlies)
+p_m = np.sum(p_monthlies,axis=0)
+conditional_prob = p_monthlies/p_m #prob of a cluster, given a time of day
 
 
-fig.tight_layout()
-fig.savefig(figname+'_ClusterProbs.svg',dpi=300)
-fig.show()
-
+dfp = pd.DataFrame(data=conditional_prob.T,columns = ['1','2','3','4','5','6','7','8','9'])
+dfp['Month']=['Apr','May','Jun','Jul','Aug','Sep','Oct']
+dfp.plot(x='Month', kind='bar', stacked=True,
+        title='Cluster frequency by Month',ax=axes[1])
 
 
 

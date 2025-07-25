@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# RiverLab Case: Plynlimon, UK, Upper Hafren 7-hour observations
+# RiverLab Case: Monticello IL
+
 
 # Initial setup 
 import matplotlib.pyplot as plt
@@ -17,6 +18,7 @@ import seaborn as sns
 
 import cluster_funcs as cf
 
+
 # Seaborn colormap
 sns_list = sns.color_palette('deep').as_hex()
 sns_list.insert(0, '#ffffff')  # Insert white at zero position
@@ -27,29 +29,24 @@ cm = sns_cmap
 
 #set number of clusters
 nc=6
+#nc=1
 
-
-data_folder='DATA/Processed/'
-figname = 'FIGS/RLPlynlimon_'+str(nc) #file path and start of file name of all generated figures
-datafile_name = 'ProcessedData_RiverPlynlimon.csv'
-
+data_folder='data_intermediate/'
+figname = 'figures/RLMonticello_'+str(nc) #file path and start of file name of all generated figures
+datafile_name = 'ProcessedData_RiverMonticello.csv'
 
 #Load data
 df = pd.read_csv(data_folder+datafile_name)
-df['Date']=pd.to_datetime(df['date_time'])
+df['Date']=pd.to_datetime(df['Date'])
 df= df.set_index(df['Date'])
 
-
-colnames_responses = ['Ca mg/l','Mg mg/l','K mg/l','NO3-N mg/l','Cl mg/l','Na mg/l','SO4 mg/l']
-
 #colnames_responses = ['CalciumLoad_g','MagnesiumLoad_g','PotassiumLoad_g','SodiumLoad_g','ChloridesLoad_g','NitratesLoad_g','SulfatesLoad_g']
-#colnames_responses = ['Calcium','Magnesium','Potassium','Sodium','Chlorures','Nitrates','Sulfates']
-
-colnames_drivers = ['Flow cumecs','LogQ','dayno']
+colnames_responses = ['Calcium','Magnesium','Potassium','Sodium','Chlorides','Nitrates','Sulfates']
+colnames_drivers = ['LogQ','LogQ10','D5TE_VWC_100cm_Avg','D5TE_VWC_5cm_Avg','Temperature','Turbidity']
 
 
 labels_responses=['Ca','Mg','K','Na','Cl','NO3','SO4']
-labels_drivers = ['Q','LQ','DOY']
+labels_drivers = ['LQ','LQ10','VWCd','VWCs','Tw','Turb']
 
 # dfnew = df[colnames_responses].copy()
 # dfnew[colnames_drivers]=df[colnames_drivers]
@@ -160,6 +157,7 @@ X_all_scaled = np.reshape(X_all_scaled,(np.shape(X_all_scaled)[0],np.shape(X_all
 #%% GMM clustering 
 
 
+
 nc_range = range(2,12)
 AIC,BIC = cf.GMMpick(X_responses_scaled,seed, nc_range)
 
@@ -172,9 +170,7 @@ plt.legend(['AIC','BIC'])
 plt.xlabel('number of clusters')
 plt.xticks(nc_range)
 
-
 fig.savefig(figname+'GMM_AICBIC.svg')
-
 
 # fit GMM to data
 gmm_model, cluster_idx = cf.GMMfun(X_responses_scaled, nc, seed,1,labels_responses)
@@ -202,9 +198,7 @@ df['pca2']=pca2
 
 #scale values to range from 0-1
 df_minmax = df.copy()
-for c in colnames_drivers:
-    df_minmax[c]=(df_minmax[c]-df_minmax[c].min())/(df_minmax[c].max()-df_minmax[c].min())
-for c in colnames_responses:
+for c in [colnames_drivers,colnames_responses]:
     df_minmax[c]=(df_minmax[c]-df_minmax[c].min())/(df_minmax[c].max()-df_minmax[c].min())
 
 use_drivers, Itot_drivers, R_drivers, S_drivers, U1_drivers, U2_drivers = cf.infoFromDrivers(df_minmax, nc, ntars,colnames_drivers, labels_drivers, nbins, nTests, critval, ax2)
@@ -243,6 +237,8 @@ dresults['Syn_2']=S_drivers[1,:]
 dresults['Utot_1']=U1_drivers[0,:]+U2_drivers[0,:]
 dresults['Utot_2']=U1_drivers[1,:]+U2_drivers[1,:]
 
+
+
 dresults.to_csv(figname+'Results.csv')
 
 #%% Plot of time-series variables, colored by cluster
@@ -256,7 +252,7 @@ for i in range(1,nc+1): #loop through classes
         
         plt.figure(1)
         plt.subplot(15,1,ct)      
-        plt.plot(pd.to_numeric(df_small[colnames_responses[var]]),'.',color=cm(i),markersize=.5,rasterized=True)
+        plt.plot(pd.to_numeric(df_small[colnames_responses[var]]),'.',color=cm(i),markersize=.1,rasterized=True)
         plt.ylabel(labels_responses[var],fontsize=8)
         plt.xticks([])
         plt.yticks([])
@@ -266,7 +262,7 @@ for i in range(1,nc+1): #loop through classes
     for var in range(0,ntars):
 
         plt.subplot(15,1,ct)      
-        plt.plot(pd.to_numeric(df_small[colnames_drivers[var]]),'.',color=cm(i),markersize=.5,rasterized=True)
+        plt.plot(pd.to_numeric(df_small[colnames_drivers[var]]),'.',color=cm(i),markersize=.1,rasterized=True)
         plt.ylabel(labels_drivers[var])
         
         plt.xticks([])
@@ -407,11 +403,6 @@ feats_all = 1e3*np.vstack(vals_responses_all).T
 
 
 
-#B = [1,3,5,8]
-#B = [2,4]
-#B = [1,2,3,9]
-#B = [4,5,6,7,8]
-#all
 B = [1,2,3,4,5,6,7,8,9]
 feat_inds = range(0,len(colnames_responses))
 
@@ -508,7 +499,10 @@ for i in range(1,nc+1): #loop through classes
         for d in range(ntars):
             if use_drivers[ct,d]>0:
                 plt.subplot(10,4,plotct)
-                plt.plot(df_small[colnames_drivers[d]],df_small[c_ind],'.',color=cm(i),markersize=1,alpha=0.5,rasterized=True)
+                if nc>1:
+                    plt.plot(df_small[colnames_drivers[d]],df_small[c_ind],'.',color=cm(i),markersize=1,alpha=0.5,rasterized=True)
+                else:
+                    plt.plot(df_small[colnames_drivers[d]],df_small[c_ind],'.',color='k',markersize=1,alpha=0.5,rasterized=True)
                 plt.xticks([])
                 plt.yticks([])
                 plt.title(labels_drivers[d],x=.3, y=.5,fontsize=8)
@@ -538,12 +532,16 @@ for i in range(1,nc+1): #loop through classes
     plt.xlim([dt.datetime(2021,8,30,0,0,0), dt.datetime(2022,12,31,0,0,0)])  
     plt.xticks([])
     plt.yticks(fontsize=8,fontname='Arial')
-    # plt.subplot(3,1,2)
-    # plt.plot(pd.to_numeric(df_small['TempRiver']),'.',color=cm(i),markersize=.2)
-    # plt.xlim([dt.datetime(2021,8,30,0,0,0), dt.datetime(2022,12,31,0,0,0)]) 
-    # plt.yticks(fontsize=8,fontname='Arial')
-    # plt.xticks([])
-
+    plt.subplot(3,1,2)
+    plt.plot(pd.to_numeric(df_small['Temperature']),'.',color=cm(i),markersize=.2)
+    plt.xlim([dt.datetime(2021,8,30,0,0,0), dt.datetime(2022,12,31,0,0,0)]) 
+    plt.yticks(fontsize=8,fontname='Arial')
+    plt.xticks([])
+    plt.subplot(3,1,3)
+    plt.plot(pd.to_numeric(df_small['GWE']),'.',color=cm(i),markersize=.2)
+    plt.xlim([dt.datetime(2021,8,30,0,0,0), dt.datetime(2022,12,31,0,0,0)])
+    plt.yticks(fontsize=8,fontname='Arial')
+    plt.xticks(rotation=30,fontsize=8)
 
 
 plt.subplots_adjust(hspace=.2,wspace=0)
@@ -565,7 +563,7 @@ C_cv = np.zeros((nc,len(colnames_responses)))
 Q_cv = np.zeros((nc,))
 
 
-Q_cv_all = df['Flow cumecs'].std()/df['Flow cumecs'].mean()
+Q_cv_all = df['Discharge'].std()/df['Discharge'].mean()
 CVratio_alltime = np.zeros((len(colnames_responses),))
 
 b_alltime = np.zeros((len(colnames_responses),))
@@ -575,15 +573,11 @@ mstyle = ['.','o','s','*','d','x','v']
 
 plt.figure(figsize=(4,4))
 
-logQ = np.asarray(np.log10(df['Flow cumecs']))
-
 for ind_c,c in enumerate(colnames_responses):
     CVratio_alltime[ind_c]=df[c].std()/df[c].mean()/Q_cv_all
     logC = np.asarray(np.log10(df[c]))
-    
-    #logQ = np.where(logQ<-3,np.log10(.001),logQ)
+    logQ = np.asarray(np.log10(df['Discharge']))
     result = stats.linregress(logQ,logC)
-    print(c, result)
     b_alltime[ind_c]  = result.slope
     p_alltime[ind_c]  = result.rvalue**2
     
@@ -594,9 +588,7 @@ hall=[]
 for ind_i,i in enumerate(range(1,nc+1)): #loop through classes    
     df_small = df.loc[df['balance_idx']==i]
     
-    logQ = np.asarray(np.log10(df_small['Flow cumecs']))
-    
-    Q_cv[ind_i] = df_small['Flow cumecs'].std()/df_small['Flow cumecs'].mean()
+    Q_cv[ind_i] = df_small['Discharge'].std()/df_small['Discharge'].mean()
     
     for ind_c,c in enumerate(colnames_responses):
         C_cv[ind_i,ind_c] = df_small[c].std()/df_small[c].mean()
@@ -605,8 +597,7 @@ for ind_i,i in enumerate(range(1,nc+1)): #loop through classes
         
         #also look at power-law regresssion slopes
         logC = np.asarray(np.log10(df_small[c]))
-        
-        #logQ = np.where(logQ<0.001,.001,logQ)
+        logQ = np.asarray(np.log10(df_small['Discharge']))
         result = stats.linregress(logQ,logC)
         b[ind_i,ind_c]  = result.slope
         pvalue[ind_i,ind_c]  = result.rvalue**2
@@ -627,24 +618,6 @@ plt.savefig(figname+'_BvsCVratio.svg')
 
 
 plt.show()
-
-
-#%%
-df_droughtsummer = df.loc[df['balance_idx']==2]
-plt.plot(np.log10(df_droughtsummer['discharge']),np.log10(df_droughtsummer['Nitrates']),'.')
-plt.show()
-CV_q_drought = df_droughtsummer ['discharge'].std()/df_droughtsummer ['discharge'].mean()
-CV_N_drought = df_droughtsummer ['Nitrates'].std()/df_droughtsummer ['Nitrates'].mean()
-
-plt.subplot(2,1,1)
-plt.plot(df_droughtsummer['discharge'],'.')
-plt.subplot(2,1,2)
-plt.plot(df_droughtsummer['Nitrates'],'.')
-
-print(CV_q_drought,CV_N_drought)
-#%%
-
-
 
 
 
@@ -747,34 +720,7 @@ plt.show()
 
 #%%
 
-monthlies = np.zeros((nc,7))
-
-for c_ind,c in enumerate(colnames_responses):
-
-
-    for i in range(1,nc+1): #loop through classes
-        for m_ind,m in enumerate(range(4,11)): #loop trhough months
-            print(m)
-            df_small = df.loc[(df['balance_idx']==i) & (df.index.month==m)]
-
-            monthlies[i-1,m_ind]=len(df_small)
-
-p_monthlies =monthlies/np.sum(monthlies)
-p_m = np.sum(p_monthlies,axis=0)
-conditional_prob = p_monthlies/p_m #prob of a cluster, given a time of day
-
-
-dfp = pd.DataFrame(data=conditional_prob.T,columns = ['1','2','3','4','5','6','7','8','9'])
-dfp['Month']=['Apr','May','Jun','Jul','Aug','Sep','Oct']
-dfp.plot(x='Month', kind='bar', stacked=True,
-        title='Cluster frequency by Month',ax=axes[1])
-
-
-
-
-
-
-flow_ranges = np.asarray(df['Flow cumecs'].quantile([0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1]))
+flow_ranges = np.asarray(df['Discharge'].quantile([0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1]))
 
 
 flows = np.zeros((nc,10))
@@ -785,7 +731,7 @@ for c_ind,c in enumerate(colnames_responses):
 
     for i in range(1,nc+1): #loop through classes
         for m_ind,m in enumerate(flow_ranges[:-1]): #loop trhough flow quantiles
-            df_small = df.loc[(df['balance_idx']==i) & (df['Flow cumecs']>m) & (df['Flow cumecs']<=flow_ranges[m_ind+1]) ]
+            df_small = df.loc[(df['balance_idx']==i) & (df['Discharge']>m) & (df['Discharge']<=flow_ranges[m_ind+1]) ]
 
             flows[i-1,m_ind]=len(df_small)
 
@@ -800,7 +746,3 @@ for i in range(0,nc): #loop through classes
 plt.xticks(range(0,len(flow_ranges[:-1])),range(0,100,10),rotation=45)
 plt.savefig(figname+'_TargetFlowCyle.svg',dpi=300)
 plt.show()
-
-
-
-

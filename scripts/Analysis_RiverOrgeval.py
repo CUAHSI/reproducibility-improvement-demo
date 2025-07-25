@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# RiverLab Case: Monticello IL
-
+# RiverLab Case: Orgeval watershed, France
 
 # Initial setup 
 import matplotlib.pyplot as plt
@@ -19,7 +18,9 @@ import seaborn as sns
 import cluster_funcs as cf
 
 
+
 # Seaborn colormap
+
 sns_list = sns.color_palette('deep').as_hex()
 sns_list.insert(0, '#ffffff')  # Insert white at zero position
 sns_cmap = ListedColormap(sns_list)
@@ -29,24 +30,26 @@ cm = sns_cmap
 
 #set number of clusters
 nc=6
-#nc=1
 
-data_folder='DATA/Processed/'
-figname = 'FIGS/RLMonticello_'+str(nc) #file path and start of file name of all generated figures
-datafile_name = 'ProcessedData_RiverMonticello.csv'
+
+data_folder='data_intermediate/'
+figname = 'figures/RLOrgeval_'+str(nc) #file path and start of file name of all generated figures
+datafile_name = 'ProcessedData_RiverOrgeval.csv'
+
 
 #Load data
 df = pd.read_csv(data_folder+datafile_name)
 df['Date']=pd.to_datetime(df['Date'])
 df= df.set_index(df['Date'])
 
+
 #colnames_responses = ['CalciumLoad_g','MagnesiumLoad_g','PotassiumLoad_g','SodiumLoad_g','ChloridesLoad_g','NitratesLoad_g','SulfatesLoad_g']
-colnames_responses = ['Calcium','Magnesium','Potassium','Sodium','Chlorides','Nitrates','Sulfates']
-colnames_drivers = ['LogQ','LogQ10','D5TE_VWC_100cm_Avg','D5TE_VWC_5cm_Avg','Temperature','Turbidity']
+colnames_responses = ['Calcium','Magnesium','Potassium','Sodium','Chlorures','Nitrates','Sulfates']
+colnames_drivers = ['LogQ','TempRiver','Turbidity']
 
 
 labels_responses=['Ca','Mg','K','Na','Cl','NO3','SO4']
-labels_drivers = ['LQ','LQ10','VWCd','VWCs','Tw','Turb']
+labels_drivers = ['LQ','Tw','Turb']
 
 # dfnew = df[colnames_responses].copy()
 # dfnew[colnames_drivers]=df[colnames_drivers]
@@ -156,8 +159,6 @@ X_all_scaled = np.reshape(X_all_scaled,(np.shape(X_all_scaled)[0],np.shape(X_all
 
 #%% GMM clustering 
 
-
-
 nc_range = range(2,12)
 AIC,BIC = cf.GMMpick(X_responses_scaled,seed, nc_range)
 
@@ -170,7 +171,9 @@ plt.legend(['AIC','BIC'])
 plt.xlabel('number of clusters')
 plt.xticks(nc_range)
 
+
 fig.savefig(figname+'GMM_AICBIC.svg')
+
 
 # fit GMM to data
 gmm_model, cluster_idx = cf.GMMfun(X_responses_scaled, nc, seed,1,labels_responses)
@@ -237,8 +240,6 @@ dresults['Syn_2']=S_drivers[1,:]
 dresults['Utot_1']=U1_drivers[0,:]+U2_drivers[0,:]
 dresults['Utot_2']=U1_drivers[1,:]+U2_drivers[1,:]
 
-
-
 dresults.to_csv(figname+'Results.csv')
 
 #%% Plot of time-series variables, colored by cluster
@@ -252,7 +253,7 @@ for i in range(1,nc+1): #loop through classes
         
         plt.figure(1)
         plt.subplot(15,1,ct)      
-        plt.plot(pd.to_numeric(df_small[colnames_responses[var]]),'.',color=cm(i),markersize=.1,rasterized=True)
+        plt.plot(pd.to_numeric(df_small[colnames_responses[var]]),'.',color=cm(i),markersize=.5,rasterized=True)
         plt.ylabel(labels_responses[var],fontsize=8)
         plt.xticks([])
         plt.yticks([])
@@ -262,7 +263,7 @@ for i in range(1,nc+1): #loop through classes
     for var in range(0,ntars):
 
         plt.subplot(15,1,ct)      
-        plt.plot(pd.to_numeric(df_small[colnames_drivers[var]]),'.',color=cm(i),markersize=.1,rasterized=True)
+        plt.plot(pd.to_numeric(df_small[colnames_drivers[var]]),'.',color=cm(i),markersize=.5,rasterized=True)
         plt.ylabel(labels_drivers[var])
         
         plt.xticks([])
@@ -403,6 +404,11 @@ feats_all = 1e3*np.vstack(vals_responses_all).T
 
 
 
+#B = [1,3,5,8]
+#B = [2,4]
+#B = [1,2,3,9]
+#B = [4,5,6,7,8]
+#all
 B = [1,2,3,4,5,6,7,8,9]
 feat_inds = range(0,len(colnames_responses))
 
@@ -499,10 +505,7 @@ for i in range(1,nc+1): #loop through classes
         for d in range(ntars):
             if use_drivers[ct,d]>0:
                 plt.subplot(10,4,plotct)
-                if nc>1:
-                    plt.plot(df_small[colnames_drivers[d]],df_small[c_ind],'.',color=cm(i),markersize=1,alpha=0.5,rasterized=True)
-                else:
-                    plt.plot(df_small[colnames_drivers[d]],df_small[c_ind],'.',color='k',markersize=1,alpha=0.5,rasterized=True)
+                plt.plot(df_small[colnames_drivers[d]],df_small[c_ind],'.',color=cm(i),markersize=1,alpha=0.5,rasterized=True)
                 plt.xticks([])
                 plt.yticks([])
                 plt.title(labels_drivers[d],x=.3, y=.5,fontsize=8)
@@ -533,15 +536,11 @@ for i in range(1,nc+1): #loop through classes
     plt.xticks([])
     plt.yticks(fontsize=8,fontname='Arial')
     plt.subplot(3,1,2)
-    plt.plot(pd.to_numeric(df_small['Temperature']),'.',color=cm(i),markersize=.2)
+    plt.plot(pd.to_numeric(df_small['TempRiver']),'.',color=cm(i),markersize=.2)
     plt.xlim([dt.datetime(2021,8,30,0,0,0), dt.datetime(2022,12,31,0,0,0)]) 
     plt.yticks(fontsize=8,fontname='Arial')
     plt.xticks([])
-    plt.subplot(3,1,3)
-    plt.plot(pd.to_numeric(df_small['GWE']),'.',color=cm(i),markersize=.2)
-    plt.xlim([dt.datetime(2021,8,30,0,0,0), dt.datetime(2022,12,31,0,0,0)])
-    plt.yticks(fontsize=8,fontname='Arial')
-    plt.xticks(rotation=30,fontsize=8)
+
 
 
 plt.subplots_adjust(hspace=.2,wspace=0)
@@ -563,7 +562,7 @@ C_cv = np.zeros((nc,len(colnames_responses)))
 Q_cv = np.zeros((nc,))
 
 
-Q_cv_all = df['Discharge'].std()/df['Discharge'].mean()
+Q_cv_all = df['discharge'].std()/df['discharge'].mean()
 CVratio_alltime = np.zeros((len(colnames_responses),))
 
 b_alltime = np.zeros((len(colnames_responses),))
@@ -576,7 +575,7 @@ plt.figure(figsize=(4,4))
 for ind_c,c in enumerate(colnames_responses):
     CVratio_alltime[ind_c]=df[c].std()/df[c].mean()/Q_cv_all
     logC = np.asarray(np.log10(df[c]))
-    logQ = np.asarray(np.log10(df['Discharge']))
+    logQ = np.asarray(np.log10(df['discharge']))
     result = stats.linregress(logQ,logC)
     b_alltime[ind_c]  = result.slope
     p_alltime[ind_c]  = result.rvalue**2
@@ -588,7 +587,7 @@ hall=[]
 for ind_i,i in enumerate(range(1,nc+1)): #loop through classes    
     df_small = df.loc[df['balance_idx']==i]
     
-    Q_cv[ind_i] = df_small['Discharge'].std()/df_small['Discharge'].mean()
+    Q_cv[ind_i] = df_small['discharge'].std()/df_small['discharge'].mean()
     
     for ind_c,c in enumerate(colnames_responses):
         C_cv[ind_i,ind_c] = df_small[c].std()/df_small[c].mean()
@@ -597,7 +596,7 @@ for ind_i,i in enumerate(range(1,nc+1)): #loop through classes
         
         #also look at power-law regresssion slopes
         logC = np.asarray(np.log10(df_small[c]))
-        logQ = np.asarray(np.log10(df_small['Discharge']))
+        logQ = np.asarray(np.log10(df_small['discharge']))
         result = stats.linregress(logQ,logC)
         b[ind_i,ind_c]  = result.slope
         pvalue[ind_i,ind_c]  = result.rvalue**2
@@ -618,9 +617,6 @@ plt.savefig(figname+'_BvsCVratio.svg')
 
 
 plt.show()
-
-
-
 
 
 #%%
@@ -674,7 +670,7 @@ plt.show()
 
 plt.figure(figsize=(3,3))
 
-feat_inds = [0,2,5,7,9,12]
+feat_inds = [0,2,5,7,9]
 
 feats = features[:,feat_inds]
 
@@ -720,7 +716,7 @@ plt.show()
 
 #%%
 
-flow_ranges = np.asarray(df['Discharge'].quantile([0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1]))
+flow_ranges = np.asarray(df['discharge'].quantile([0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1]))
 
 
 flows = np.zeros((nc,10))
@@ -731,7 +727,7 @@ for c_ind,c in enumerate(colnames_responses):
 
     for i in range(1,nc+1): #loop through classes
         for m_ind,m in enumerate(flow_ranges[:-1]): #loop trhough flow quantiles
-            df_small = df.loc[(df['balance_idx']==i) & (df['Discharge']>m) & (df['Discharge']<=flow_ranges[m_ind+1]) ]
+            df_small = df.loc[(df['balance_idx']==i) & (df['discharge']>m) & (df['discharge']<=flow_ranges[m_ind+1]) ]
 
             flows[i-1,m_ind]=len(df_small)
 
