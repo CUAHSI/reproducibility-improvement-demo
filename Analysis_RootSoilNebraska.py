@@ -31,7 +31,7 @@ cm = sns_cmap
 nc=9
 
 
-data_folder='DATA/Processed/'
+data_folder='data_intermediate/'
 figname = 'FIGS/RootSoil_'+str(nc) #file path and start of file name of all generated figures
 
 datafile_name = 'ProcessedData_RootSoilNebraska.csv'

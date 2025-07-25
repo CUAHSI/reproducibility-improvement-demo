@@ -11,8 +11,8 @@ import datetime as dt
 import pandas as pd
 from matplotlib.colors import ListedColormap
 
-data_folder='DATA/River/'
-out_data_folder = 'Data/Processed/'
+data_folder='data_input/River/'
+out_data_folder = 'data_intermediate/'
 res = '30min'
 #res = '7H'
 

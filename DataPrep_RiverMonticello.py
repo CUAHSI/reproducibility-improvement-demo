@@ -10,9 +10,9 @@ import datetime as dt
 import pandas as pd
 from matplotlib.colors import ListedColormap
 
-data_folder='DATA/River/'
-fluxdata_folder = 'Data/FluxTowers/'
-out_data_folder = 'DATA/Processed/'
+data_folder='data_input/River/'
+fluxdata_folder = 'data_input/FluxTowers/'
+out_data_folder = 'data_intermediate/'
 res = '30min'
 
 

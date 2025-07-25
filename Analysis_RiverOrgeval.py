@@ -32,7 +32,7 @@ cm = sns_cmap
 nc=6
 
 
-data_folder='DATA/Processed/'
+data_folder='data_intermediate/'
 figname = 'FIGS/RLOrgeval_'+str(nc) #file path and start of file name of all generated figures
 datafile_name = 'ProcessedData_RiverOrgeval.csv'
 
