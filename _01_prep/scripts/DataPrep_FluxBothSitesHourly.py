@@ -1,253 +1,139 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-#  Code to pre-process data for flux tower case - concatenate datasets, gap fill, etc
-#  save dataframe as csv that is input into the GMM-PCA-IT framework
+# Code to pre-process data for flux tower case - concatenate datasets, gap fill, etc
+# save dataframe as csv that is input into the GMM-PCA-IT framework
 
-#Hourly version of flux tower data
+# Hourly version of flux tower data
 
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime as dt
 import pandas as pd
 from matplotlib.colors import ListedColormap
+# import prep helpers script
+import _01_DataPrep.scripts.DataPrep_Helpers as prep_hlp 
+
+def load_and_merge_gc_data(data_folder: str) -> pd.DataFrame:
+    """
+    Loads raw GC flux data and merges with GPP/Reco data.
+
+    Args:
+        data_folder (str): The path to the folder containing the raw data CSV files.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the merged GC flux, GPP, and Reco data.
+    """
+    df = prep_hlp.load_csv(
+        file_path=data_folder + 'GC_FluxData_RAW_25m_042216_050224.csv',
+        date_column='NewDate',
+        localize_tz=False,
+        index_column='Date'
+    )
+    df = df.rename(columns={'NewDate': 'Date'})
+
+    dfGPP = prep_hlp.load_csv(
+        file_path=data_folder + 'GC_25m_REddyProc_Processed_30min_DaytimePartitioning.csv',
+        date_column='Date',
+        localize_tz=False,
+    )
+    dfwithGPP = dfGPP[['Date', 'GPP_DT', 'Reco_DT', 'NEE_U05_fall']]
+
+    df = pd.merge(df, dfwithGPP, on='Date', how='outer')
+    df = prep_hlp.calculate_doy(df)
+    return df
+
+def process_gc_flux_data(data_folder: str, 
+                         df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Processes GC flux data including NDVI merging, outlier removal, and resampling.
+
+    Args:
+        data_folder (str): The path to the folder containing the raw data CSV files.
+        df (pd.DataFrame): The DataFrame containing the raw GC flux data.
+
+    Returns:
+        pd.DataFrame: The processed GC flux DataFrame.
+    """
+    df_NDVI_MOD1 = prep_hlp.load_csv(
+        file_path=data_folder + 'MODIS_fluxtower_download/flux-tower-MODIS-NDVI-MOD13A1-061-results.csv',
+        date_column='Date', localize_tz=True
+    )
+    df_NDVI_MOD2 = prep_hlp.load_csv(
+        file_path=data_folder + 'MODIS_fluxtower_download/flux-tower-MODIS-NDVI-MYD13A1-061-results.csv',
+        date_column='Date', localize_tz=True
+    )
+
+    df_NDVI_MOD1['NDVI'] = df_NDVI_MOD1['MOD13A1_061__500m_16_days_NDVI']
+    df_NDVI_MOD2['NDVI'] = df_NDVI_MOD2['MYD13A1_061__500m_16_days_NDVI']
+
+    df_m1 = df_NDVI_MOD1[['Date', 'NDVI']]
+    df_m2 = df_NDVI_MOD2[['Date', 'NDVI']]
+
+    dfMOD = pd.concat([df_m1, df_m2], axis=0).drop_duplicates('Date').set_index('Date')
+    dfMOD_1day = prep_hlp.resample_and_interpolate(dfMOD, resample_freq='1D', interpolation_method='linear')
+    dfMOD_1day = prep_hlp.calculate_doy(dfMOD_1day)
+    df = pd.merge(df, dfMOD_1day, on='Date', how='outer', suffixes=('', '_y'))
+
+    df = prep_hlp.remove_outliers_by_quantile(df, ['tau', 'u_star', 'rslt_wnd_spd', 'T_tmpr_rh_mean', 'RH_tmpr_rh_mean',
+                                             'CO2_li_mean', 'H_corr', 'LE_corr', 'ET_corr', 'GPP_DT', 'Reco_DT',
+                                             'Tr_Wm2', 'Precip_Tot'])
+    for col in df.columns:
+        df[col] = np.where(df[col] == -9999, np.nan, df[col])
+
+    df['UoverUstar'] = df['rslt_wnd_spd'] / df['u_star']
+    df = df.resample('30T').mean()
+    df = df.interpolate(method='linear', limit=20)
+    df['site'] = 'GC'
+    return df
+
+def process_konza_data(data_folder: str) -> pd.DataFrame:
+    """
+    Loads and processes Konza flux data, including outlier removal and resampling.
+
+    Args:
+        data_folder (str): The path to the folder containing the Konza data CSV file.
+
+    Returns:
+        pd.DataFrame: The processed Konza flux DataFrame.
+    """
+    dfK = prep_hlp.load_csv(
+        file_path=data_folder + 'Konza_FluxData_Raw_30min_042216_050224.csv',
+        date_column='NewDate',
+        localize_tz=False,
+        index_column='Date'
+    )
+    dfK = dfK.rename(columns={'NewDate': 'Date'})
+
+    for c in dfK.columns:
+        dfK[c] = np.where(dfK[c] == -9999, np.nan, dfK[c])
+    dfK = prep_hlp.remove_outliers_by_quantile(dfK, dfK.columns.drop('Date'))
+    dfK = dfK.resample('30T').mean()
+    dfK['site'] = 'Kon'
+    dfK = dfK.interpolate(method='linear', limit=20)
+    return dfK
 
-data_folder='data_input/FluxTowers/'
-out_data_folder = 'data_intermediate/'
+def prep_hourly_flux_data_both_sites(data_folder: str,
+                                     out_data_folder: str):
+    """
+    Orchestrates the data preprocessing for Flux Both Sites Hourly data,
+    merging GC and Konza data, and saving the final processed DataFrame to a CSV.
 
-df = pd.read_csv(data_folder+'GC_FluxData_RAW_25m_042216_050224.csv')
-df['Date']=pd.to_datetime(df['NewDate'])
+    Args:
+        data_folder (str): The path to the folder containing the raw data files.
+        out_data_folder (str): The path to the folder where the output CSV file will be saved.
+    """
+    df = process_gc_flux_data(load_and_merge_gc_data(data_folder))
+    dfK = process_konza_data(data_folder)
 
-dfGPP = pd.read_csv(data_folder+'GC_25m_REddyProc_Processed_30min_DaytimePartitioning.csv')
-dfGPPdates = pd.read_csv(data_folder+'ReddyProc_25m_Dates.csv')
+    df_combined = pd.concat([df, dfK], axis=0, ignore_index=False)
 
-dfGPP['Date'] = pd.to_datetime(dfGPPdates['Date'])
+    df_combined = prep_hlp.calculate_doy(df_combined)
 
-dfwithGPP = dfGPP[['Date','GPP_DT','Reco_DT','NEE_U05_fall']]
+    colnames_responses = ['NEE', 'GPP_DT', 'Reco_DT', 'LE_corr', 'H_corr', 'WUE', 'site']
+    final_cols = [col for col in colnames_responses + ['DOY', 'T_tmpr_rh_mean', 'RH_tmpr_rh_mean', 'CO2_li_mean', 'Precip_Tot'] if col in df_combined.columns]
 
+    df_combined = df_combined[final_cols].copy()
+    df_combined = df_combined.dropna()
 
-df = pd.merge(df,dfwithGPP,on='Date',how='outer')
-
-df['DOY']=df['Date'].dt.dayofyear
-
-
-df_NDVI_MOD1 = pd.read_csv(data_folder+ 'MODIS_fluxtower_download/flux-tower-MODIS-NDVI-MOD13A1-061-results.csv')
-df_NDVI_MOD2 = pd.read_csv(data_folder+ 'MODIS_fluxtower_download/flux-tower-MODIS-NDVI-MYD13A1-061-results.csv')
-
-
-df_NDVI_MOD1['Date']=pd.to_datetime(df_NDVI_MOD1['Date']).dt.tz_localize(None)
-df_NDVI_MOD2['Date']=pd.to_datetime(df_NDVI_MOD1['Date']).dt.tz_localize(None)
-df_NDVI_MOD1['NDVI']=df_NDVI_MOD1['MOD13A1_061__500m_16_days_NDVI']
-df_NDVI_MOD2['NDVI']=df_NDVI_MOD2['MYD13A1_061__500m_16_days_NDVI']
-
-df_m1 = df_NDVI_MOD1[['Date','NDVI']]
-df_m2 = df_NDVI_MOD2[['Date','NDVI']]
-
-dfMOD = pd.concat([df_m1, df_m2], axis=0).drop_duplicates('Date')
-dfMOD = dfMOD.set_index('Date')
-
-
-dfMOD_1H = dfMOD.resample('30T').interpolate(method='linear')
-
-df = pd.merge(df,dfMOD_1H,on='Date',how='outer')
-
-#%%
-
-df['NEE']=df['NEE_U05_fall']
-df['LE']=df['LE_li_wpl']
-df['GPP']=df['GPP_DT']
-df['Reco']=df['Reco_DT']
-
-
-colnames_responses = ['LE','GPP','Reco','Hc_li','NEE']
-colnames_drivers = ['Date','DOY','T_tmpr_rh_mean','RH_tmpr_rh_mean','D5TE_VWC_5cm_Avg','D5TE_VWC_100cm_Avg','D5TE_T_5cm_Avg','D5TE_T_100cm_Avg', 'short_up_Avg','CO2_li_mean','NDVI']
-nfeatures=len(colnames_responses)
-ntars = len(colnames_drivers)
-
-
-dfnew = df[colnames_responses].copy()
-dfnew[colnames_drivers]=df[colnames_drivers]
-
-df = dfnew.set_index('Date')
-
-
-#set desired time range (if not whole dataframe)
-start_date = dt.datetime(2016,4,15,0,0,0)
-end_date = dt.datetime(2022,12,31,0,0,0)
-
-
-df = df.loc[df.index>start_date]
-df = df.loc[df.index<end_date]
-
-#growing season only, day time only
-df = df.loc[df.index.hour>=9]
-df = df.loc[df.index.hour<17]  
-
-df = df.loc[df.index.month>=4]
-df = df.loc[df.index.month<=10]
-
-#drop 2020, too much missing data during pandemic spring  
-df = df[df.index.year !=2020]  
-
-
-
-df['LE']=np.where(df['LE']<0,np.nan,df['LE'])
-df['Hc_li']=np.where(df['Hc_li']<0,np.nan,df['Hc_li'])
-
-df['LE']=np.where(df['LE']>df['short_up_Avg'],np.nan,df['LE'])
-df['Hc_li']=np.where(df['Hc_li']>df['short_up_Avg'],np.nan,df['Hc_li'])
-
-df['B']=df['Hc_li']/df['LE']
-df['B'] = np.where(df['B']>5,np.nan,df['B'])
-
-
-df['short_up_Avg']=np.where(df['short_up_Avg']<200,np.nan,df['short_up_Avg'])
-
-df['WUE']= df['GPP']/df['LE']
-df['WUE'] = np.where(df['WUE']<0,0,df['WUE'])
-
-
-plt.figure(figsize=(5,15))
-for i,c in enumerate(df.columns):
-    
-    maxval = df.quantile(.995)[c]
-    minval = df.quantile(.005)[c]
-    df[c] = np.where(df[c]>maxval,np.nan,df[c])
-    df[c] = np.where(df[c]<minval,np.nan,df[c])
-
-
-
-df = df.resample('30T').mean() 
-
-df['site'] = 'GC'
-
-df = df.dropna()
-    
-plt.figure(figsize=(5,15))
-for i,c in enumerate(df.columns):
-    plt.subplot(22,1,i+1)
-    plt.plot(df[c])
-    plt.ylabel(c)
-    #plt.xlim(dt.datetime(2020,1,1,0,0,0),dt.datetime(2023,1,1,0,0,0))
-
-
-df.to_csv(data_folder+'Data_GCFluxTower_30min.csv')
-
-
-#%% Konza Prairie Data
-
-
-dfK = pd.read_csv(data_folder+'AMF_US-Kon_FLUXNET_SUBSET_2004-2019_4-6/AMF_US-Kon_FLUXNET_SUBSET_HH_2004-2019_4-6.csv')
-dfK['Date']=pd.to_datetime(dfK['TIMESTAMP_START'], format='%Y%m%d%H%M')
-
-
-dfK['NEE']=dfK['NEE_VUT_REF']
-dfK['LE']=dfK['LE_CORR']
-dfK['GPP']=dfK['GPP_DT_VUT_REF']
-dfK['Reco']=dfK['RECO_DT_VUT_REF']
-
-colnames_responses = ['NEE','LE','GPP','Reco','H_CORR']
-colnames_drivers = ['Date','TA_F','CO2_F_MDS','SW_IN_F','RH','WS_F']
-nfeatures=len(colnames_responses)
-ntars = len(colnames_drivers)
-
-
-dfnew = dfK[colnames_responses].copy()
-dfnew[colnames_drivers]=dfK[colnames_drivers]
-
-dfK = dfnew.set_index('Date')
-
-
-#set desired time range (if not whole dataframe)
-# start_date = dt.datetime(2016,4,15,0,0,0)
-end_date = dt.datetime(2015,12,31,0,0,0)
-
-
-dfK = dfK.loc[dfK.index<end_date]
-
-
-
-dfK = dfK.loc[dfK.index.hour>=9]
-dfK = dfK.loc[dfK.index.hour<17]  
-
-dfK = dfK.loc[dfK.index.year != 2008]
-
-
-dfK['B']=dfK['H_CORR']/dfK['LE']
-dfK['B'] = np.where(dfK['B']>5,np.nan,dfK['B'])
-dfK['B'] = np.where(dfK['B']<0,np.nan,dfK['B'])
-
-
-dfK['short_up_Avg']=np.where(dfK['SW_IN_F']<200,np.nan,dfK['SW_IN_F'])
-
-
-dfK['WUE']= dfK['GPP']/dfK['LE']
-dfK['WUE'] = np.where(dfK['WUE']<0,0,dfK['WUE'])
-
-
-#growing season only, day time only
-dfK = dfK.loc[dfK.index.month>=4]
-dfK = dfK.loc[dfK.index.month<=10]
-
-plt.figure(figsize=(5,15))
-for i,c in enumerate(dfK.columns):
-    
-    dfK[c] = np.where(dfK[c]==-9999,np.nan,dfK[c])
-    
-    maxval = dfK.quantile(.995)[c]
-    minval = dfK.quantile(.005)[c]
-    dfK[c] = np.where(dfK[c]>maxval,np.nan,dfK[c])
-    dfK[c] = np.where(dfK[c]<minval,np.nan,dfK[c])
-
-
-
-dfK = dfK.resample('30T').mean() 
-
-dfK['site'] = 'Kon'
-
-
-dfK = dfK.dropna()
-    
-plt.figure(figsize=(5,15))
-for i,c in enumerate(dfK.columns):
-    plt.subplot(20,1,i+1)
-    plt.plot(dfK[c])
-    plt.ylabel(c)
-    #plt.xlim(dt.datetime(2020,1,1,0,0,0),dt.datetime(2023,1,1,0,0,0))
-
-
-dfK.to_csv(data_folder+'Data_KONFluxTower_30min.csv')
-
-
-#%% make a combined version
-
-colnames_responses = ['NEE','GPP','Reco','LE','B','WUE','site']
-colnames_drivers = ['DOY','T_tmpr_rh_mean','RH_tmpr_rh_mean','D5TE_VWC_5cm_Avg','D5TE_VWC_100cm_Avg','D5TE_T_5cm_Avg','D5TE_T_100cm_Avg', 'short_up_Avg','CO2_li_mean','NDVI']
-
-colnames_all = colnames_responses+colnames_drivers
-
-dfGC_mini = df[colnames_all]
-dfK_mini =dfK[colnames_responses]
-
-plt.figure(5)
-plt.subplot(1,2,1)
-plt.plot(dfGC_mini['NEE'],'b')
-plt.plot(dfGC_mini['GPP'],'g')
-plt.plot(dfGC_mini['Reco'],'r')
-plt.title('Carbon fluxes GC')
-plt.legend(['NEE','GPP','Reco'])
-
-plt.subplot(1,2,2)
-plt.plot(dfK_mini['NEE'],'b')
-plt.plot(dfK_mini['GPP'],'g')
-plt.plot(dfK_mini['Reco'],'r')
-plt.title('Carbon fluxes US-Kon')
-
-combined_df = pd.concat([dfGC_mini, dfK_mini], axis=0)
-
-
-
-combined_df.to_csv(out_data_folder+'ProcessedData_GCKonTowers30min.csv')
-
-
-
+    df_combined.to_csv(out_data_folder + 'Data_FluxBothSites_Hourly.csv')

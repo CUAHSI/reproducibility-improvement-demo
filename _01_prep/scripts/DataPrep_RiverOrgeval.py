@@ -1,106 +1,98 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-#  Code to pre-process data for riverlab case - concatenate datasets, gap fill, etc
-#  save dataframe as csv that is input into the GMM-PCA-IT framework
-#  Orgeval Version!!!
+# Code to pre-process data for riverlab case - concatenate datasets, gap fill, etc
+# save dataframe as csv that is input into the GMM-PCA-IT framework
+# Orgeval Version!!!
 
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime as dt
 import pandas as pd
 from matplotlib.colors import ListedColormap
+# import prep helpers script
+import _01_DataPrep.scripts.DataPrep_Helpers as prep_hlp
 
-data_folder='data_input/River/'
-out_data_folder = 'data_intermediate/'
-res = '30min'
-#res = '7H'
+def load_and_clean_orgeval_data(data_folder: str) -> pd.DataFrame:
+    """
+    Loads Orgeval river data and performs initial cleaning and type conversion.
 
+    Args:
+        data_folder (str): Path to the data folder.
 
-#%%
+    Returns:
+        pd.DataFrame: The cleaned DataFrame with 'Date' as the index.
+    """
+    df_rivervars = prep_hlp.load_csv(
+        file_path=data_folder + 'orgeval_RL.csv',
+        date_column='Date',
+        localize_tz=None
+    )
 
-df_rivervars = pd.read_csv(data_folder + 'orgeval_RL.csv')
-orig_df_rivervars = df_rivervars.copy()
-
-#%%
-df_rivervars['Date']=pd.to_datetime(df_rivervars['Date']).dt.tz_localize(None)
-
-df_rivervars = df_rivervars.reset_index()
-
-colnames_keep = ['Date','TempRiver','Turbidity','discharge','Magnesium','Potassium','Calcium','Sodium','Sulfates','Nitrates','Chlorures']
-
-
-for c in df_rivervars.columns:
-    if c in colnames_keep:
+    # Ensure numeric types for relevant columns
+    colnames_keep = ['Date', 'TempRiver', 'Turbidity', 'discharge', 'Magnesium', 'Potassium',
+                      'Calcium', 'Sodium', 'Sulfates', 'Nitrates', 'Chlorures']
+    
+    df = df_rivervars[colnames_keep].copy()
+    for c in df.columns:
         if c != 'Date':
-            df_rivervars[c]=pd.to_numeric(df_rivervars[c])
-     
+            df[c] = pd.to_numeric(df[c], errors='coerce') # Use coerce to turn non-numeric into NaN
+
+    # Replace specific bad values with NaN
+    df['discharge'] = np.where(df['discharge'] == 9999, np.nan, df['discharge'])
+    df['TempRiver'] = np.where(df['TempRiver'] == 9999, np.nan, df['TempRiver'])
     
-df = df_rivervars[colnames_keep]
+    return df.set_index('Date')
 
+def prepare_river_orgeval_data(data_folder: str, 
+                               out_data_folder: str, 
+                               res: str):
+    """
+    Orchestrates the data preprocessing for River Orgeval data,
+    including loading, cleaning, resampling, and calculating derived variables
+    before saving the final DataFrame to a CSV.
 
+    Args:
+        data_folder (str): The path to the folder containing the raw data files.
+        out_data_folder (str): The path to the folder where the output CSV file will be saved.
+        res (str): The resampling frequency string (e.g., '1H', '30T').
+    """
+    df = load_and_clean_orgeval_data(data_folder)
 
-df = df.resample(res,on='Date').first()
-#df_rivervars['Date']=df_rivervars.index
+    # Resample to desired resolution and interpolate
+    df = prep_hlp.resample_and_interpolate(df, resample_freq=res, interpolation_limit=24) # limit=24 for 30min data
 
-df = df.reset_index()
+    # Interpolate for remaining NaNs after resampling (original script had this as a loop)
+    for c in df.columns:
+        df[c] = df[c].interpolate(method='linear', limit=24) # Original script used limit=24
 
+    df = prep_hlp.calculate_doy(df) # Calculate DOY using the index
 
+    # # Apply specific value filters
+    # df['discharge'] = prep_hlp.apply_range_filter(df, 'discharge', lower_bound=0)
+    # df['TempRiver'] = prep_hlp.apply_range_filter(df, 'TempRiver', lower_bound=-10, upper_bound=40)
+    # df['Turbidity'] = prep_hlp.apply_range_filter(df, 'Turbidity', lower_bound=0)
 
-#%%
+    # Apply datetime filtering if needed (example)
+    # df = prep_hlp.filter_by_datetime_range(df, start_date=dt.datetime(2010,1,1), end_date=dt.datetime(2020,12,31))
+    # df = prep_hlp.filter_by_datetime_range(df, exclude_year=2015)
 
+    # Calculate LogQ
+    df['LogQ'] = np.log10(df['discharge'])
 
-df_withnans = df.copy()
+    # Calculate loads
+    colnames_responses = ['Calcium', 'Magnesium', 'Potassium', 'Sodium', 'Chlorures', 'Nitrates', 'Sulfates']
+    colnames_loads = []
+    for c in colnames_responses:
+        if c in df.columns and 'discharge' in df.columns:
+            df[c + 'Load_g'] = df[c] * df['discharge']
+            colnames_loads.append(c + 'Load_g')
 
-
-
-#want to linearly interpolate gaps in each variable, up to 12 hours (24 half hour data points)
-for c in df.columns:
-    df[c] = df[c].interpolate(method='linear',limit=24)
+    # Define final columns and save
+    colnames_drivers = ['discharge', 'LogQ', 'TempRiver', 'Turbidity'] # Simplified for example
     
-df_fillednans = df.copy()
+    final_cols = [col for col in colnames_responses + colnames_loads + colnames_drivers + ['DOY'] if col in df.columns]
+    df = df[final_cols].copy()
+    df = df.dropna()
 
-df['DOY']=df['Date'].dt.dayofyear
-#df['Discharge']=np.log(df['Discharge'])
-
-df=df.set_index(df['Date'])
-df = df.drop(labels='Date',axis=1)
-
-
-#want estimate of ET/P from past several days...P-ET from cumulative 5 days?
-
-colnames_responses = ['Calcium','Magnesium','Potassium','Sodium','Chlorures','Nitrates','Sulfates']
-
-#convert Q to total liters of water in each timestep
-#df['Q_liters'] = df['Discharge']*3.6*10**6
-
-
-df['LogQ']=np.log10(df['discharge'])
-
-
-colnames_loads=[]
-for c in colnames_responses:
-    
-    df[c+'Load_g'] = df[c]*df['discharge'] #Convert mg/L to load in g (per hour) for each solute
-    
-    colnames_loads.append(c+'Load_g')
-
-#get new O2 data from Jinyu???
-
-#colnames_drivers = ['Discharge','Precip_1D','Precip_3D','Precip_7D','Precip_14D','D5TE_VWC_100cm_Avg','Temp_anomaly_14D','O2_anomaly_14D','Turbidity','GWE','Dissolved Oxygen','Temperature']
-
-colnames_drivers = ['discharge','LogQ','Turbidity','TempRiver']
-
-dfnew = df[colnames_responses].copy()
-dfnew[colnames_loads]=df[colnames_loads]
-dfnew[colnames_drivers]=df[colnames_drivers]
-
-for c in dfnew.columns:
-    dfnew[c]=pd.to_numeric(dfnew[c])
-
-dfnew = dfnew.dropna() #This leads to some gaps since I'm omitting any row where any variable is a nan
-
-dfnew['Date']=dfnew.index
-
-dfnew.to_csv(out_data_folder+'ProcessedData_RiverOrgeval.csv')
-
+    df.to_csv(out_data_folder + 'Data_OrgevalRiver_Hourly.csv')

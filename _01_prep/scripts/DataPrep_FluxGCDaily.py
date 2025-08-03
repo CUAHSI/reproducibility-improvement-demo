@@ -1,219 +1,190 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-#  Code to pre-process data for flux tower case - concatenate datasets, gap fill, etc
-#  save dataframe as csv that is input into the GMM-PCA-IT framework
+# Code to pre-process data for flux tower case - concatenate datasets, gap fill, etc
+# save dataframe as csv that is input into the GMM-PCA-IT framework
 
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime as dt
 import pandas as pd
 from matplotlib.colors import ListedColormap
+# import prep helpers script
+import _01_DataPrep.scripts.DataPrep_Helpers as prep_hlp 
 
+def load_and_initial_process_flux_data(data_folder: str) -> pd.DataFrame:
+    """
+    Loads initial flux data and performs basic date processing and DOY calculation.
 
-data_folder='data_input/FluxTowers/'
-out_data_folder = 'data_intermediate/'
+    Args:
+        data_folder (str): Path to the data folder.
 
+    Returns:
+        pd.DataFrame: Processed flux data DataFrame.
+    """
+    df = prep_hlp.load_csv(
+        file_path=data_folder + 'Corrected_Daily_25m_2016_2023.csv',
+        date_column='Date',
+        localize_tz=True
+    )
+    df = prep_hlp.calculate_doy(df, date_column='Date')
+    return df
 
-df = pd.read_csv(data_folder+'Corrected_Daily_25m_2016_2023.csv')
-df['Date']=pd.to_datetime(df['Date']).dt.tz_localize(None)
-df['DOY'] = df['Date'].dt.dayofyear
+def process_raw_flux_data(data_folder: str) -> pd.DataFrame:
+    """
+    Loads and processes raw flux data, including outlier removal and resampling.
 
-df_raw = pd.read_csv(data_folder+'FluxData_Raw_ALL.csv',usecols=['NewDate','tau','u_star','rslt_wnd_spd','T_tmpr_rh_mean'])
-df_raw['NewDate']=pd.to_datetime(df_raw['NewDate'])
-df_raw['tau'] = np.where(df_raw['tau']>df_raw['tau'].quantile(.995),np.nan,df_raw['tau'])
-df_raw['tau'] = np.where(df_raw['tau']<0,np.nan,df_raw['tau'])
-df_raw['u_star'] = np.where(df_raw['u_star']>df_raw['u_star'].quantile(.95),np.nan,df_raw['u_star'])
-df_raw['u_star'] = np.where(df_raw['u_star']<0,np.nan,df_raw['u_star'])
-df_raw['rslt_wnd_spd'] = np.where(df_raw['rslt_wnd_spd']>df_raw['rslt_wnd_spd'].quantile(.995),np.nan,df_raw['rslt_wnd_spd'])
-df_raw['rslt_wnd_spd'] = np.where(df_raw['rslt_wnd_spd']<0,np.nan,df_raw['rslt_wnd_spd'])
+    Args:
+        data_folder (str): Path to the data folder.
 
-
-
-df_raw['UoverUstar'] = df_raw['rslt_wnd_spd']/df_raw['u_star']
-
-df_raw_1D = df_raw.resample('1D',on='NewDate').mean()
-
-
-df_raw_maxvals =df_raw.resample('1D',on='NewDate').max()
-df_raw_minvals =df_raw.resample('1D',on='NewDate').min()
-
-df_raw_1D['Ta_min']=df_raw_minvals['T_tmpr_rh_mean']
-df_raw_1D['Ta_max']=df_raw_maxvals['T_tmpr_rh_mean']
-
-df_raw = df_raw_1D
-
-df_raw['Date']=df_raw.index
-#df= df.dropna()
-
-
-df_NDVI_MOD1 = pd.read_csv(data_folder+ 'MODIS_fluxtower_download/flux-tower-MODIS-NDVI-MOD13A1-061-results.csv')
-df_NDVI_MOD2 = pd.read_csv(data_folder+ 'MODIS_fluxtower_download/flux-tower-MODIS-NDVI-MYD13A1-061-results.csv')
-
-
-df_NDVI_MOD1['Date']=pd.to_datetime(df_NDVI_MOD1['Date']).dt.tz_localize(None)
-df_NDVI_MOD2['Date']=pd.to_datetime(df_NDVI_MOD1['Date']).dt.tz_localize(None)
-df_NDVI_MOD1['NDVI']=df_NDVI_MOD1['MOD13A1_061__500m_16_days_NDVI']
-df_NDVI_MOD2['NDVI']=df_NDVI_MOD2['MYD13A1_061__500m_16_days_NDVI']
-
-df_m1 = df_NDVI_MOD1[['Date','NDVI']]
-df_m2 = df_NDVI_MOD2[['Date','NDVI']]
-
-
-dfMOD = pd.concat([df_m1, df_m2], axis=0).drop_duplicates('Date')
-
-
-dfMOD = dfMOD.set_index('Date')
-
-plt.plot(dfMOD['NDVI'],'.b')
-
-
-dfMOD_1day = dfMOD.resample('1D').interpolate(method='linear')
-
-plt.plot(dfMOD_1day['NDVI'],'r')
-
-dfMOD_1day=dfMOD_1day.reset_index()
-
-
-df = pd.merge(df,dfMOD_1day,on='Date',how='outer')
-
-df = pd.merge(df,df_raw,on='Date',how='outer')
-
-
-#set desired time range (if not whole dataframe)
-start_date = dt.datetime(2016,4,15,0,0,0)
-end_date = dt.datetime(2022,12,31,0,0,0)
-
-
-df = df.loc[df['Date']>start_date]
-df = df.loc[df['Date']<end_date]
-
-
-
-df = df.set_index(df['Date'])
-df = df.drop(labels='Date',axis=1)
-
-df = df.interpolate(method='time')
-
-#drop 2020, too much missing data during pandemic spring  
-df = df[df.index.year !=2020]    
-
-df = df.loc[df['DOY_x']>90]
-df = df.loc[df['DOY_x']<310]
-
-
-print(list(df.columns))
-
-
-#%%
-
-df['gdd'] = (df['Ta_max']+df['Ta_min'])/2 - 18
-df['gdd']=np.where(df['gdd']<0,0,df['gdd'])
-
-# Calculate the cumulative sum resetting at the beginning of each year
-df['gdd'] = df.groupby(df.index.year)['gdd'].transform('cumsum')
-df['Precip_cum'] = df.groupby(df.index.year)['Precip_Tot'].transform('cumsum')
-df['ET_cum'] = df.groupby(df.index.year)['ET_corr'].transform('cumsum')
-
-df['P_ET_cumdiff'] = df['Precip_cum']-df['ET_cum']
-
-df['Precip_14D']=df['Precip_Tot'].rolling(14, min_periods=1).sum()
-df['Precip_7D']=df['Precip_Tot'].rolling(7, min_periods=1).sum()
-df['Precip_3D']=df['Precip_Tot'].rolling(3, min_periods=1).sum()
-df['Precip_1D']=df['Precip_Tot'].rolling(1, min_periods=1).sum()
-
-#NDVI_peak is tower values (peak of daytime values)
-#NDVI_inc is increment from one day to next in tower values
-
-
-#df['NDVI'] = df['NDVI']+df['NDVI_inc']
-
-#vegetation fraction: account for NDVI saturating at high value 
-#make low NDVI equal to nan (don't want to consider non-growing season)
-df['NDVI']=np.where(df['NDVI']<0.3,np.nan,df['NDVI'])
-
-df['Veg_frac']=(df['NDVI']-.3)/(0.8-.3)
-df['Veg_frac'] = np.where(df['Veg_frac']>1,1,df['Veg_frac'])
-df['Veg_frac'] = np.where(df['Veg_frac']<0.05,0.05,df['Veg_frac'])
-
-
-
-#%%
-
-
-
-# In[25]:
-
-
-#ET partitioning into E and T - trying TSEB approach, computes transpiration from temp, radiation, veg fraction
-def Transpiration(df,TempName,RadName,fgName,Seconds):
-    #slope of vapor pressure curve
-    T = df[TempName]
-    Rn = df[RadName]
-    fg=df[fgName]
-    s = 4098 * (.6108 * np.exp(17.67*T/(237.3+T)))/((237.3+T)**2)
-    y = .066 #psychrometric constant
-    Tr = 1.3*fg*(s/(s+y))*Rn
+    Returns:
+        pd.DataFrame: Processed raw flux data DataFrame.
+    """
+    df_raw = hlp.load_csv(
+        file_path=data_folder + 'FluxData_Raw_ALL.csv',
+        date_column='NewDate',
+        use_cols=['NewDate', 'tau', 'u_star', 'rslt_wnd_spd', 'T_tmpr_rh_mean'],
+        localize_tz=False
+    )
     
-    heatvap_lambda = 2.501-(2.361 * 10**-3)*T   #latent heat of vaporization
-
-    Tr_mm = Tr/(heatvap_lambda*1000*1000/Seconds) #get in mm (to compare with ET)
-    Tr_Wm2 = Tr
+    # Remove outliers using quantiles
+    df_raw = prep_hlp.remove_outliers_by_quantile(df_raw, ['tau'], lower_quantile=0, upper_quantile=0.995)
+    df_raw = prep_hlp.remove_outliers_by_quantile(df_raw, ['u_star'], lower_quantile=0, upper_quantile=0.95)
+    df_raw = prep_hlp.remove_outliers_by_quantile(df_raw, ['rslt_wnd_spd'], lower_quantile=0, upper_quantile=0.995)
     
-    return Tr_mm, Tr_Wm2
+    df_raw['UoverUstar'] = df_raw['rslt_wnd_spd'] / df_raw['u_star']
+    
+    # Resample to daily and get min/max temperature
+    df_raw_1D = prep_hlp.resample_and_interpolate(df_raw, '1D', on_column='NewDate')
+    df_raw_maxvals = df_raw.resample('1D', on='NewDate').max()
+    df_raw_minvals = df_raw.resample('1D', on='NewDate').min()
+    
+    df_raw_1D['Ta_min'] = df_raw_minvals['T_tmpr_rh_mean']
+    df_raw_1D['Ta_max'] = df_raw_maxvals['T_tmpr_rh_mean']
+    df_raw_1D['Date'] = df_raw_1D.index
+    return df_raw_1D.reset_index(drop=True)
 
-#maximum bound for transpiration (use max temperature from that day)
-df['Tr_mm'], df['Tr_Wm2'] = Transpiration(df,'Ta_max','Rn_new','Veg_frac',3600*24)
+def process_ndvi_data(data_folder: str) -> pd.DataFrame:
+    """
+    Loads and processes MODIS NDVI data from two sources and combines them.
 
+    Args:
+        data_folder (str): Path to the data folder.
 
-df['Tr_mm']=np.where(df['Tr_mm']>=df['ET_corr'], df['ET_corr'],df['Tr_mm'])
-df['Tr_Wm2']=np.where(df['Tr_Wm2']>=df['LE_corr'], df['LE_corr'],df['Tr_Wm2'])
+    Returns:
+        pd.DataFrame: Processed NDVI DataFrame.
+    """
+    df_NDVI_MOD1 = prep_hlp.load_csv(
+        file_path=data_folder + 'MODIS_fluxtower_download/flux-tower-MODIS-NDVI-MOD13A1-061-results.csv',
+        date_column='Date',
+        localize_tz=True
+    )
+    df_NDVI_MOD2 = prep_hlp.load_csv(
+        file_path=data_folder + 'MODIS_fluxtower_download/flux-tower-MODIS-NDVI-MYD13A1-061-results.csv',
+        date_column='Date',
+        localize_tz=True
+    )
+    
+    df_NDVI_MOD1['NDVI'] = df_NDVI_MOD1['MOD13A1_061__500m_16_days_NDVI']
+    df_NDVI_MOD2['NDVI'] = df_NDVI_MOD2['MYD13A1_061__500m_16_days_NDVI']
+    
+    df_m1 = df_NDVI_MOD1[['Date', 'NDVI']]
+    df_m2 = df_NDVI_MOD2[['Date', 'NDVI']]
+    
+    dfMOD = pd.concat([df_m1, df_m2], axis=0).drop_duplicates('Date')
+    dfMOD = dfMOD.set_index('Date')
+    
+    # Interpolate to daily frequency
+    dfMOD_1day = prep_hlp.resample_and_interpolate(dfMOD, '1D', interpolation_method='linear')
+    return dfMOD_1day.reset_index()
 
-plt.figure(5)
-plt.plot(df['Tr_mm'],df['ET_corr'],'.')
-plt.xlabel('Transpiration')
-plt.ylabel('total ET')
+def prep_flux_gc_daily_data(data_folder: str,
+                            out_data_folder: str):
+    """
+    Orchestrates the data preprocessing for FluxGC Daily data,
+    including loading, merging, filtering, and calculating new variables before
+    saving the final DataFrame to a CSV.
 
-
-# In[7]:
-
-df['EF']=df['LE_corr']/(df['LE_corr']+df['H_corr'])
-df['EF'] = np.where(df['EF']<0, 0, df['EF'])
-df['EF'] = np.where(df['EF']>3, 3, df['EF'])
-df['EF'] = np.where(np.isnan(df['ET_corr']),np.nan,df['EF'])
-
-df['ToverET']=df['Tr_Wm2']/(df['LE_corr']+df['H_corr'])
-df['ToverET']=np.where(df['ToverET']>1,1,df['ToverET'])
-
-df['WUE']=df['GPP_DT']/df['Tr_Wm2']
-df['WUE'] = np.where(df['WUE']>df['WUE'].quantile(.995), np.nan, df['WUE'])
-df['WUE'] = np.where(df['WUE']<df['WUE'].quantile(.005), np.nan, df['WUE'])
-
-df['GPPoverNDVI']=df['GPP_DT']/df['NDVI']
-df['GPPoverNDVI'] = np.where(df['GPPoverNDVI']>df['GPPoverNDVI'].quantile(.995), np.nan, df['GPPoverNDVI'])
-df['GPPoverNDVI'] = np.where(df['GPPoverNDVI']<df['GPPoverNDVI'].quantile(.005), np.nan, df['GPPoverNDVI'])
-
-df['Reco_Fraction']=df['Reco_DT']/(df['Reco_DT']+np.abs(df['GPP_DT']))
-
-#colnames_responses = ['NEE','GPP_U50_f','Reco_U50','ToverET','WUE','NDVI_update']
-colnames_responses = ['NEE','Reco_Fraction','ToverET','WUE','NDVI','GPPoverNDVI','EF','GPP_DT','Reco_DT','H_corr','ET_corr','GPP_DT','Reco_DT','Tr_Wm2','tau','UoverUstar','DOY']
-colnames_drivers = ['Precip_14D','Precip_7D','Precip_3D','Precip_1D','gdd','T_tmpr_rh_mean_x','D5TE_VWC_100cm_Avg','D5TE_VWC_5cm_Avg','P_ET_cumdiff','Rn_new']
-nfeatures=len(colnames_responses)
-ntars = len(colnames_drivers)
-
-dfnew = df[colnames_responses].copy()
-dfnew[colnames_drivers]=df[colnames_drivers]
-
-
-#rolling average - 14 days (to focus on seasonal/subseasonal trends)
-dfnew = dfnew.rolling(14,min_periods=1,center=True).mean()
-
-
-#drop winter months
-dfnew = dfnew.loc[dfnew.index.dayofyear>120]
-dfnew = dfnew.loc[dfnew.index.dayofyear<300]
-
-dfnew = dfnew.dropna() #This leads to some gaps since I'm omitting any row where any variable is a nan
-
-dfnew.to_csv(out_data_folder+'ProcessedData_GCFluxTowerDaily.csv')
-
+    Args:
+        data_folder (str): Path to the folder containing the raw data files.
+        out_data_folder (str): Path to the folder where the output CSV file will be saved.
+    """
+    df_main = load_and_initial_process_flux_data(data_folder)
+    df_raw = process_raw_flux_data(data_folder)
+    df_ndvi = process_ndvi_data(data_folder)
+    
+    # Merge dataframes
+    df = pd.merge(df_main, df_ndvi, on='Date', how='outer')
+    df = pd.merge(df, df_raw, on='Date', how='outer')
+    
+    # Set index before filtering with datetime functions
+    df = df.set_index('Date')
+    
+    # Filter by date range and exclude 2020 using the new combined function
+    start_date = dt.datetime(2016, 4, 15, 0, 0, 0)
+    end_date = dt.datetime(2022, 12, 31, 0, 0, 0)
+    df = prep_hlp.filter_by_datetime_range(
+        df,
+        start_date=start_date,
+        end_date=end_date,
+        exclude_year=2020
+    )
+    
+    # Interpolate remaining missing values
+    df = df.interpolate(method='time')
+    
+    # Filter by Day of Year (this remains as it's not a datetime component directly)
+    df = df.loc[df['DOY_x'] > 90]
+    df = df.loc[df['DOY_x'] < 310]
+    
+    print(list(df.columns))
+    
+    # Calculate derived variables
+    df['gdd'] = (df['Ta_max'] + df['Ta_min']) / 2 - 18
+    df['gdd'] = prep_hlp.apply_range_filter(df, 'gdd', lower_bound=0, replace_value=0)
+    
+    df = prep_hlp.calculate_cumulative_sum_by_year(df, 'gdd', 'gdd')
+    df = prep_hlp.calculate_cumulative_sum_by_year(df, 'Precip_Tot', 'Precip_cum')
+    df = prep_hlp.calculate_cumulative_sum_by_year(df, 'ET_corr', 'ET_cum')
+    df['P_ET_cumdiff'] = df['Precip_cum'] - df['ET_cum']
+    
+    df = prep_hlp.calculate_rolling_sums(df, ['Precip_Tot'], [14, 7, 3, 1])
+    
+    # Further calculations and outlier removals (specific to this script)
+    # NDVI_peak is tower values (peak of daytime values)
+    df['NDVI_peak_interp_roll'] = df['NDVI'].rolling(5, min_periods=1).mean()
+    df['NDVI_peak_interp_roll'] = prep_hlp.apply_range_filter(df, 'NDVI_peak_interp_roll', lower_bound=0)
+    
+    df['T_tmpr_rh_mean_interp_roll'] = df['T_tmpr_rh_mean'].rolling(5, min_periods=1).mean()
+    df['T_tmpr_rh_mean_interp_roll'] = prep_hlp.remove_outliers_by_quantile(df, ['T_tmpr_rh_mean_interp_roll'], lower_quantile=0.005, upper_quantile=0.995)['T_tmpr_rh_mean_interp_roll']
+    
+    df['RH_tmpr_rh_mean_interp_roll'] = df['RH_tmpr_rh_mean'].rolling(5, min_periods=1).mean()
+    df['RH_tmpr_rh_mean_interp_roll'] = prep_hlp.remove_outliers_by_quantile(df, ['RH_tmpr_rh_mean_interp_roll'], lower_quantile=0.005, upper_quantile=0.995)['RH_tmpr_rh_mean_interp_roll']
+    
+    df['VPD'] = 0.611 * np.exp((17.27 * df['T_tmpr_rh_mean_interp_roll']) / (237.3 + df['T_tmpr_rh_mean_interp_roll'])) * (1 - df['RH_tmpr_rh_mean_interp_roll'] / 100)
+    df['VPD'] = prep_hlp.apply_range_filter(df, 'VPD', lower_bound=0)
+    
+    # More derived variables and cleaning
+    df['EF'] = df['LE_corr'] / (df['LE_corr'] + df['H_corr'])
+    df['EF'] = prep_hlp.apply_range_filter(df, 'EF', lower_bound=0, upper_bound=1)
+    
+    df['ToverET'] = (df['Tr_Wm2']) / df['ET_corr']
+    df['ToverET'] = prep_hlp.apply_range_filter(df, 'ToverET', lower_bound=0)
+    
+    df['WUE'] = df['GPP_DT'] / df['LE_corr']
+    df['WUE'] = prep_hlp.apply_range_filter(df, 'WUE', lower_bound=0)
+    df = prep_hlp.remove_outliers_by_quantile(df, ['WUE'])
+    
+    df['GPPoverNDVI'] = df['GPP_DT'] / df['NDVI']
+    df = prep_hlp.remove_outliers_by_quantile(df, ['GPPoverNDVI'])
+    
+    df['Reco_Fraction'] = df['Reco_DT'] / (df['Reco_DT'] + np.abs(df['GPP_DT']))
+    
+    # Final column selections and saving
+    colnames_responses = ['NEE', 'Reco_Fraction', 'ToverET', 'WUE', 'NDVI', 'GPPoverNDVI', 'EF', 'GPP_DT', 'Reco_DT', 'H_corr', 'ET_corr', 'GPP_DT', 'Reco_DT', 'Tr_Wm2', 'tau', 'UoverUstar', 'DOY']
+    colnames_drivers = ['Precip_14D', 'Precip_7D', 'Precip_3D', 'Precip_1D', 'gdd', 'T_tmpr_rh_mean_x', 'D5TE_VWC_5cm_Avg', 'D5TE_VWC_100cm_Avg', 'D5TE_T_5cm_Avg', 'D5TE_T_100cm_Avg', 'short_up_Avg', 'CO2_li_mean', 'RH_tmpr_rh_mean_x', 'VPD', 'NDVI_peak_interp_roll', 'T_tmpr_rh_mean_interp_roll', 'RH_tmpr_rh_mean_interp_roll']
+    
+    df = df[colnames_responses + colnames_drivers].copy()
+    df = df.dropna()
+    
+    df.to_csv(out_data_folder + 'Data_GCFluxTower_Daily.csv')
