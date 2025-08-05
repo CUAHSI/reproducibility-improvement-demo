@@ -27,15 +27,25 @@ In lieu of running the entire analysis, we have also created an example workflow
 | **`_02_analyze`** | applying clustering algorithm |
 | **`_03_visualize`** | visualizing clustering results |
 
-1. **Setup the required software.** Install the required packages by running the following command in the root of this repo:
+1. **Setup the required software in a `conda` environment.** If you do not already have a conda-based package and environment management system, we recommend downloading [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/main). To set-up the environment configured with the necessary libraries to run the workflow, use the provided `environment.yml` file and run this command in the root directory (note this may take a few minutes to execute):
+
 ```
-pip install -r requirements.txt
+conda env create --file environment.yml
 ```
 
-This workflow has been tested with Python 3.10.3.
+2. **Activate the conda environment.** To activate the newly created environment, in the same directory run this command:
 
-2. **Run the full workflow across all sites.** The full workflow can be executed across all sites by running the `run_workflow_across_sites.py` code file located in the root of the repository.
-1. **Inspect results.** Open the results products and explore them. There should be one dataset (`_02_analyze/outputs/[CASE STUDY]_Results.csv`) and several figures (`_02_visualize/outputs/[CASE STUDY]_*.svg`).
+```
+conda activate reproducibility-improvement-env
+```
+
+3. **Run the full workflow across all sites in a `Snakemake` pipeline.** This workflow uses [Snakemake](https://snakemake.readthedocs.io/en/stable/) as a pipelining tool to automate the steps for prep, analysis and visualization of data across all sites. We can execute the snakemake pipeline with this command:
+
+```
+snakemake --cores 1 -s Snakefile.smk
+```
+
+4. **Inspect results.** Open the results products and explore them. There should be one dataset (`_02_analyze/outputs/[CASE STUDY]_Results.csv`) and several figures (`_03_visualize/outputs/[CASE STUDY]_*.svg`).
 
 ## How to navigate this codebase
 
