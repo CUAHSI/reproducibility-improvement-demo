@@ -35,7 +35,7 @@ pip install -r requirements.txt
 This workflow has been tested with Python 3.10.3.
 
 2. **Run the full workflow across all sites.** The full workflow can be executed across all sites by running the `run_workflow_across_sites.py` code file located in the root of the repository.
-1. **Inspect results.** Open the results products and explore them. There should be one dataset (`_02_analyze/outputs/[CASE STUDY]_Results.csv`) and several figures (`_02_visualize/outputs/[CASE STUDY]_*.svg`).
+1. **Inspect results.** Open the results products and explore them. There should be one dataset (`_02_analyze/outputs/[CASE STUDY]_Results.csv`) and several figures (`_03_visualize/outputs/[CASE STUDY]_*.svg`).
 
 ## How to navigate this codebase
 
