@@ -47,6 +47,7 @@ snakemake --cores 1 -s Snakefile.smk
 
 4. **Inspect results.** Open the results products and explore them. There should be one dataset (`_02_analyze/outputs/[CASE STUDY]_Results.csv`) and several figures (`_03_visualize/outputs/[CASE STUDY]_*.svg`).
 
+
 ## How to navigate this codebase
 
 ### Input data
