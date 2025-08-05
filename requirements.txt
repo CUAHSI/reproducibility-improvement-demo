@@ -1,5 +1,0 @@
-numpy           # general scientific computing library
-pandas          # general data science library
-matplotlib      # general visualization library
-seaborn         # visualization library built on matplotlib
-scikit-learn    # machine learning library
